@@ -18,6 +18,7 @@ const POS = () => {
   const [orderType, setOrderType] = useState('dine-in');
   const [customer, setCustomer] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [searchQuery, setSearchQuery] = useState(''); // NEW: Search state
 
   const { user } = useAuth();
 
@@ -30,7 +31,7 @@ const POS = () => {
     try {
       setLoading(true);
       console.log('🔄 Loading POS data from backend...');
-      
+
       const [productsResponse, categoriesResponse, tablesResponse, customersResponse] = await Promise.all([
         realApi.getProducts(),
         realApi.getCategories(),
@@ -52,7 +53,7 @@ const POS = () => {
       } else {
         console.error('❌ Products API failed:', productsResponse.message);
       }
-      
+
       if (categoriesResponse.success) {
         const categoriesData = realApi.extractData(categoriesResponse) || [];
         console.log('✅ Categories loaded:', categoriesData);
@@ -62,7 +63,7 @@ const POS = () => {
         // Use default categories if API fails
         setCategories(['Main Course', 'Salads', 'Sides', 'Beverages', 'Desserts']);
       }
-      
+
       if (tablesResponse.success) {
         const tablesData = realApi.extractData(tablesResponse) || [];
         console.log('✅ Tables loaded:', tablesData.length);
@@ -70,7 +71,7 @@ const POS = () => {
       } else {
         console.error('❌ Tables API failed:', tablesResponse.message);
       }
-      
+
       if (customersResponse.success) {
         const customersData = realApi.extractData(customersResponse) || [];
         console.log('✅ Customers loaded:', customersData.length);
@@ -78,7 +79,7 @@ const POS = () => {
       } else {
         console.error('❌ Customers API failed:', customersResponse.message);
       }
-      
+
     } catch (error) {
       console.error('❌ Error loading POS data:', error);
       alert('Failed to load POS data. Please check your connection and try again.');
@@ -91,10 +92,10 @@ const POS = () => {
     try {
       setSettingsLoading(true);
       console.log('🔄 Loading settings from backend...');
-      
+
       const response = await realApi.getSettings();
       console.log('📦 Settings API response:', response);
-      
+
       if (response.success) {
         const settingsData = realApi.extractData(response);
         console.log('✅ Settings loaded:', settingsData);
@@ -116,27 +117,29 @@ const POS = () => {
     if (!product.image) {
       return 'https://via.placeholder.com/150x150?text=No+Image';
     }
-    
+
     // If it's already a full URL (starts with http), use it directly
     if (product.image.startsWith('http')) {
       return product.image;
     }
-    
+
     // Get backend URL from environment
     const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'https://mama-africa1.vercel.app';
-    
+
     // If it's a relative path (starts with /uploads), construct full URL
     if (product.image.startsWith('/uploads')) {
       return `${backendUrl}${product.image}`;
     }
-    
+
     // If it's just a filename, construct the full path
     return `${backendUrl}/uploads/products/${product.image}`;
   };
 
-  const filteredProducts = selectedCategory === 'All' 
-    ? products 
-    : products.filter(product => product.category === selectedCategory);
+  const filteredProducts = products.filter(product => {
+    const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const addToCart = (product) => {
     // Check if product has sufficient stock
@@ -147,22 +150,22 @@ const POS = () => {
 
     setCart(prevCart => {
       const existingItem = prevCart.find(item => item._id === product._id);
-      
+
       if (existingItem) {
         // Check if adding more than available stock
         if (product.stock !== undefined && (existingItem.quantity + 1) > product.stock) {
           alert(`Only ${product.stock} items available in stock`);
           return prevCart;
         }
-        
+
         return prevCart.map(item =>
           item._id === product._id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       } else {
-        return [...prevCart, { 
-          ...product, 
+        return [...prevCart, {
+          ...product,
           quantity: 1,
           addedAt: new Date().toISOString()
         }];
@@ -175,13 +178,13 @@ const POS = () => {
       removeFromCart(productId);
       return;
     }
-    
+
     const product = cart.find(item => item._id === productId);
     if (product && product.stock !== undefined && newQuantity > product.stock) {
       alert(`Only ${product.stock} items available in stock`);
       return;
     }
-    
+
     setCart(prevCart =>
       prevCart.map(item =>
         item._id === productId
@@ -244,8 +247,8 @@ const POS = () => {
         paymentMethod: paymentMethod,
         tableId: selectedTable,
         customerId: selectedCustomer,
-        customerName: selectedCustomer ? 
-          customers.find(c => c._id === selectedCustomer)?.name : 
+        customerName: selectedCustomer ?
+          customers.find(c => c._id === selectedCustomer)?.name :
           customer || 'Walking Customer',
         totalAmount: getCartTotal(),
         taxAmount: getTaxAmount(),
@@ -258,7 +261,7 @@ const POS = () => {
       console.log('💾 Creating order:', orderData);
       const response = await realApi.createOrder(orderData);
       console.log('📦 Create order response:', response);
-      
+
       if (response.success) {
         alert('Order created successfully!');
         setCart([]);
@@ -297,8 +300,8 @@ const POS = () => {
         paymentMethod: paymentMethod,
         tableId: selectedTable,
         customerId: selectedCustomer,
-        customerName: selectedCustomer ? 
-          customers.find(c => c._id === selectedCustomer)?.name : 
+        customerName: selectedCustomer ?
+          customers.find(c => c._id === selectedCustomer)?.name :
           customer || 'Walking Customer',
         totalAmount: getCartTotal(),
         taxAmount: getTaxAmount(),
@@ -313,7 +316,7 @@ const POS = () => {
       console.log('💾 Saving order for receipt:', orderData);
       const response = await realApi.createOrder(orderData);
       console.log('📦 Create order response:', response);
-      
+
       if (response.success) {
         console.log('✅ Order saved for receipt printing');
       } else {
@@ -323,7 +326,7 @@ const POS = () => {
       // Generate and print receipt
       const receiptContent = generateReceiptContent(orderData);
       const printWindow = window.open('', '_blank', 'width=300,height=600');
-      
+
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -424,7 +427,7 @@ const POS = () => {
           </body>
         </html>
       `);
-      
+
       printWindow.document.close();
       printWindow.focus();
       printWindow.print();
@@ -439,10 +442,10 @@ const POS = () => {
   const generateReceiptContent = (orderData) => {
     const now = new Date();
     const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
+
     const selectedTableData = tables.find(t => t._id === selectedTable);
     const selectedCustomerData = customers.find(c => c._id === selectedCustomer);
-    
+
     const restaurantName = settings?.restaurantName || 'Manma Africa Restaurant';
     const receiptNumber = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     const serverName = user?.name || 'kamli';
@@ -515,7 +518,7 @@ const POS = () => {
     setCustomer('');
   };
 
-  
+
 
   const currencySymbol = getCurrencySymbol();
 
@@ -563,12 +566,12 @@ const POS = () => {
               >
                 <option value="">Select Table</option>
                 {tables.map(table => (
-                  <option 
-                    key={table._id} 
+                  <option
+                    key={table._id}
                     value={table._id}
                     disabled={table.status !== 'available'}
                   >
-                    {table.number || `Table ${table._id}`} 
+                    {table.number || `Table ${table._id}`}
                     {table.status !== 'available' ? ' (Occupied)' : ''}
                   </option>
                 ))}
@@ -601,15 +604,30 @@ const POS = () => {
           </div>
         </div>
 
+        {/* NEW: Large Professional Search Bar */}
+        <div className="mb-4 relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-lg shadow-sm"
+            placeholder="Search products by name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
         {/* Categories */}
         <div className="flex gap-1 mb-2 sm:mb-3 overflow-x-auto pb-1 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
           <button
             onClick={() => setSelectedCategory('All')}
-            className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${
-              selectedCategory === 'All' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-white text-gray-700 border'
-            }`}
+            className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${selectedCategory === 'All'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-gray-700 border'
+              }`}
           >
             All
           </button>
@@ -617,11 +635,10 @@ const POS = () => {
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${
-                selectedCategory === category 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-white text-gray-700 border'
-              }`}
+              className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${selectedCategory === category
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 border'
+                }`}
             >
               {category}
             </button>
@@ -637,9 +654,9 @@ const POS = () => {
               className="bg-white p-2 rounded-lg border cursor-pointer hover:shadow-md transition-shadow group"
             >
               <div className="h-20 bg-gray-100 rounded mb-1 flex items-center justify-center overflow-hidden">
-                <img 
-                  src={getProductImageUrl(product)} 
-                  alt={product.name} 
+                <img
+                  src={getProductImageUrl(product)}
+                  alt={product.name}
                   className="h-full w-full object-cover rounded"
                   onError={(e) => {
                     e.target.src = 'https://via.placeholder.com/150x150?text=Image+Error';
@@ -679,13 +696,13 @@ const POS = () => {
             <span className="text-xs">{orderType} • {selectedTable ? `Table ${tables.find(t => t._id === selectedTable)?.number}` : 'No Table'}</span>
           </div>
         </div>
-        
+
         {/* Order Info */}
         <div className="p-2 sm:p-3 bg-blue-50 border-b">
           <div className="text-xs text-blue-800 space-y-1">
             {selectedCustomer || customer ? (
-              <div><strong>Customer:</strong> {selectedCustomer ? 
-                customers.find(c => c._id === selectedCustomer)?.name : 
+              <div><strong>Customer:</strong> {selectedCustomer ?
+                customers.find(c => c._id === selectedCustomer)?.name :
                 customer}</div>
             ) : (
               <div><strong>Customer:</strong> Walking Customer</div>
@@ -695,12 +712,12 @@ const POS = () => {
             )}
           </div>
         </div>
-        
+
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto p-2 sm:p-3 min-h-0" style={{ maxHeight: 'calc(50vh - 200px)' }}>
           {cart.length === 0 ? (
             <div className="text-center text-gray-500 text-sm py-8">
-              Cart is empty<br/>
+              Cart is empty<br />
               <span className="text-xs">Select products to add to order</span>
             </div>
           ) : (
@@ -775,7 +792,7 @@ const POS = () => {
                 <option value="mycash">MYCash</option>
               </select>
             </div>
-            
+
             {/* Action Buttons */}
             <div className="p-2 sm:p-3 border-t bg-white space-y-2">
               {orderType === 'dine-in' && !selectedTable && (
@@ -783,7 +800,7 @@ const POS = () => {
                   Please select a table
                 </div>
               )}
-              
+
               <div className="flex gap-2">
                 <button
                   onClick={clearCart}
