@@ -6,20 +6,20 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
 // Pages
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import POS from './pages/POS';
-import Kitchen from './pages/Kitchen';
-import Orders from './pages/Orders';
-import Inventory from './pages/Inventory';
-import CustomerLedger from './pages/CustomerLedger';
-import Finance from './pages/Finance';
-import Settings from './pages/Settings';
-import Users from './pages/Users';
-import Tables from './pages/Tables';
-import Purchase from './pages/Purchase'; // FIXED: This file should be .jsx
-import Reports from './pages/Reports';
-import CashierHandoverReport from './pages/CashierHandoverReport';
+import Login from './pages/login';
+import Dashboard from './pages/dashboard';
+import POS from './pages/pos';
+import Kitchen from './pages/kitchen';
+import Orders from './pages/orders';
+import Inventory from './pages/inventory';
+import CustomerLedger from './pages/customer-ledger';
+import Finance from './pages/finance';
+import Settings from './pages/settings';
+import Users from './pages/users';
+import Tables from './pages/tables';
+import Purchase from './pages/purchase'; // FIXED: This file should be .jsx
+import Reports from './pages/reports';
+import CashierHandoverReport from './pages/cashier-handover-report';
 
 function App() {
   return (
@@ -29,7 +29,7 @@ function App() {
           <div className="App">
             <Routes>
               <Route path="/login" element={<Login />} />
-              
+
               {/* Protected routes with layout */}
               <Route path="/" element={
                 <ProtectedRoute>
@@ -37,39 +37,39 @@ function App() {
                 </ProtectedRoute>
               }>
                 <Route index element={<Navigate to="/dashboard" replace />} />
-                
+
                 <Route path="dashboard" element={<Dashboard />} />
-                
+
                 <Route path="pos" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager', 'cashier', 'waiter']}>
                     <POS />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="kitchen" element={
                   <ProtectedRoute requiredRoles={['admin', 'chef']}>
                     <Kitchen />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="orders" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager', 'cashier']}>
                     <Orders />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="tables" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager', 'waiter']}>
                     <Tables />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="inventory" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager']}>
                     <Inventory />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="customers" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager', 'cashier']}>
                     <CustomerLedger />
@@ -81,13 +81,13 @@ function App() {
                     <CustomerLedger />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="finance" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager']}>
                     <Finance />
                   </ProtectedRoute>
                 } />
-                
+
                 {/* ADD PURCHASE ROUTE */}
                 <Route path="purchase" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager']}>
@@ -106,20 +106,20 @@ function App() {
                     <CashierHandoverReport />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="settings" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager']}>
                     <Settings />
                   </ProtectedRoute>
                 } />
-                
+
                 <Route path="users" element={
                   <ProtectedRoute requiredRoles={['admin', 'manager']}>
                     <Users />
                   </ProtectedRoute>
                 } />
               </Route>
-              
+
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </div>
