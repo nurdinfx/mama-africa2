@@ -1,0 +1,39 @@
+#root {
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  width: 100%;
+  overflow-x: hidden;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+:root {
+  --page-max: 1280px;
+}
+
+.page-shell {
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .page-shell {
+    padding: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-shell {
+    padding: 1.5rem;
+  }
+}
