@@ -7,93 +7,93 @@ const Sidebar = () => {
   const location = useLocation();
 
   const navigation = [
-    { 
-      name: 'Dashboard', 
-      href: '/dashboard', 
+    {
+      name: 'Dashboard',
+      href: '/dashboard',
       icon: '📊',
-      roles: ['admin', 'manager'] 
+      roles: ['admin', 'manager']
     },
-    { 
-      name: 'POS', 
-      href: '/pos', 
+    {
+      name: 'POS',
+      href: '/pos',
       icon: '💳',
-      roles: ['admin', 'manager', 'cashier', 'waiter'] 
+      roles: ['admin', 'manager', 'cashier', 'waiter']
     },
-    { 
-      name: 'Kitchen', 
-      href: '/kitchen', 
+    {
+      name: 'Kitchen',
+      href: '/kitchen',
       icon: '👨‍🍳',
-      roles: ['admin', 'chef'] 
+      roles: ['admin', 'chef']
     },
-    { 
-      name: 'Orders', 
-      href: '/orders', 
+    {
+      name: 'Orders',
+      href: '/orders',
       icon: '📦',
-      roles: ['admin', 'manager', 'cashier'] 
+      roles: ['admin', 'manager', 'cashier']
     },
-    { 
-      name: 'Tables', 
-      href: '/tables', 
+    {
+      name: 'Tables',
+      href: '/tables',
       icon: '🪑',
-      roles: ['admin', 'manager', 'waiter'] 
+      roles: ['admin', 'manager', 'waiter']
     },
-    { 
-      name: 'Inventory', 
-      href: '/inventory', 
+    {
+      name: 'Inventory',
+      href: '/inventory',
       icon: '📦',
-      roles: ['admin', 'manager'] 
+      roles: ['admin', 'manager']
     },
 
-    { 
-      name: 'Customer Ledger', 
-      href: '/customers/ledger', 
+    {
+      name: 'Customer Ledger',
+      href: '/customers/ledger',
       icon: '📒',
-      roles: ['admin', 'manager', 'cashier'] 
+      roles: ['admin', 'manager', 'cashier']
     },
-    { 
-      name: 'Finance', 
-      href: '/finance', 
+    {
+      name: 'Finance',
+      href: '/finance',
       icon: '💰',
-      roles: ['admin', 'manager'] 
+      roles: ['admin', 'manager']
     },
     // ADD PURCHASE NAVIGATION ITEM
-    { 
-      name: 'Purchase', 
-      href: '/purchase', 
+    {
+      name: 'Purchase',
+      href: '/purchase',
       icon: '🛒',
-      roles: ['admin', 'manager'] 
+      roles: ['admin', 'manager']
     },
-    { 
-      name: 'Users', 
-      href: '/users', 
+    {
+      name: 'Users',
+      href: '/users',
       icon: '👤',
-      roles: ['admin', 'manager'] 
+      roles: ['admin', 'manager']
     },
-    { 
-      name: 'Reports', 
-      href: '/reports', 
+    {
+      name: 'Reports',
+      href: '/reports',
       icon: '📈',
-      roles: ['admin', 'manager'] 
+      roles: ['admin', 'manager']
     },
-    { 
-      name: 'Settings', 
-      href: '/settings', 
+    {
+      name: 'Settings',
+      href: '/settings',
       icon: '⚙️',
-      roles: ['admin', 'manager'] 
+      roles: ['admin', 'manager']
     },
   ];
 
-  const filteredNavigation = navigation.filter(item => 
+  const filteredNavigation = navigation.filter(item =>
     item.roles.includes(user?.role)
   );
 
   return (
-    <div className="w-64 bg-blue-800 text-white h-screen fixed left-0 top-0 overflow-y-auto">
+    <div className="w-64 bg-red-800 text-white h-screen fixed left-0 top-0 overflow-y-auto">
       <div className="p-4">
         <h1 className="text-2xl font-bold text-white">RMS</h1>
-        <p className="text-blue-200 text-sm">mama-africa Restaurant</p>
+        <p className="text-red-200 text-sm">mama-africa Restaurant</p>
       </div>
-      
+
       <nav className="mt-8">
         <ul className="space-y-2 px-4">
           {filteredNavigation.map((item) => {
@@ -102,11 +102,10 @@ const Sidebar = () => {
               <li key={item.name}>
                 <Link
                   to={item.href}
-                  className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-blue-600 text-white'
-                      : 'text-blue-100 hover:bg-blue-700'
-                  }`}
+                  className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive
+                      ? 'bg-red-600 text-white'
+                      : 'text-red-100 hover:bg-red-700'
+                    }`}
                 >
                   <span className="mr-3 text-lg">{item.icon}</span>
                   <span className="font-medium">{item.name}</span>
@@ -116,7 +115,7 @@ const Sidebar = () => {
           })}
         </ul>
       </nav>
-      
+
     </div>
   );
 };
