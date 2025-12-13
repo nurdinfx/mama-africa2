@@ -19,7 +19,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    
+
     if (token) {
       if (token.startsWith('demo-')) {
         config.headers.Authorization = token;
@@ -27,7 +27,7 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
-    
+
     console.log(`📤 ${config.method.toUpperCase()} ${config.url}`, config.params || '');
     return config;
   },
@@ -42,7 +42,7 @@ api.interceptors.response.use(
   (response) => {
     console.log(`📥 Response from ${response.config.url}:`, response.status);
     console.log('📦 Raw response data:', response.data);
-    
+
     // Handle different response formats
     if (response.data && typeof response.data === 'object') {
       // Check if response has success field (some APIs return {success: true, data: {...}})
@@ -56,7 +56,7 @@ api.interceptors.response.use(
           meta: response.data.meta
         };
       }
-      
+
       // Check if data is directly an array (e.g., [{...}, {...}])
       if (Array.isArray(response.data)) {
         return {
@@ -66,7 +66,7 @@ api.interceptors.response.use(
           message: 'Success'
         };
       }
-      
+
       // Check if data has nested data property
       if (response.data.data !== undefined) {
         return {
@@ -78,7 +78,7 @@ api.interceptors.response.use(
           meta: response.data.meta
         };
       }
-      
+
       // Return the object as-is (might be a single object response)
       return {
         success: true,
@@ -89,7 +89,7 @@ api.interceptors.response.use(
         meta: response.data.meta
       };
     }
-    
+
     return {
       success: true,
       status: response.status,
@@ -104,16 +104,16 @@ api.interceptors.response.use(
       status: error.response?.status,
       data: error.response?.data
     });
-    
+
     let errorMessage = 'Network error occurred';
     let errorCode = 'NETWORK_ERROR';
-    
+
     if (error.response) {
-      errorMessage = error.response.data?.message || 
-                    error.response.data?.error || 
-                    error.response.statusText;
+      errorMessage = error.response.data?.message ||
+        error.response.data?.error ||
+        error.response.statusText;
       errorCode = `HTTP_${error.response.status}`;
-      
+
       // Handle specific status codes
       if (error.response.status === 401) {
         localStorage.removeItem('token');
@@ -124,7 +124,7 @@ api.interceptors.response.use(
       errorMessage = 'No response from server. Please check if backend is running.';
       errorCode = 'NO_RESPONSE';
     }
-    
+
     return Promise.reject({
       success: false,
       message: errorMessage,
@@ -150,7 +150,7 @@ const handleApiError = (error, context) => {
   return {
     success: false,
     message: error?.message || 'Request failed',
-    code: error?.code || error?.response?.status ? `HTTP_${error.response.status}` : 'UNKNOWN_ERROR',
+    code: error?.code || (error?.response?.status ? `HTTP_${error.response.status}` : 'UNKNOWN_ERROR'),
     status: error?.response?.status,
     data: error?.response?.data
   };
@@ -162,27 +162,27 @@ const extractData = (response) => {
     console.warn('⚠️ extractData: No response provided');
     return null;
   }
-  
+
   if (response.success === false) {
     console.warn('⚠️ extractData: Response indicates failure:', response.message);
     return null;
   }
-  
+
   const data = response.data;
-  
+
   console.log('🔍 extractData - Extracting from response:', {
     hasData: !!data,
     isArray: Array.isArray(data),
     isObject: data && typeof data === 'object',
     dataKeys: data && typeof data === 'object' ? Object.keys(data) : []
   });
-  
+
   // If data is already an array, return it
   if (Array.isArray(data)) {
     console.log('✅ extractData: Returning array with', data.length, 'items');
     return data;
   }
-  
+
   // If data is an object, check for common nested structures
   if (data && typeof data === 'object') {
     // Check for nested data property
@@ -190,7 +190,7 @@ const extractData = (response) => {
       console.log('✅ extractData: Found nested data property');
       return Array.isArray(data.data) ? data.data : data.data;
     }
-    
+
     // Check for common array properties
     if (data.items !== undefined && Array.isArray(data.items)) {
       console.log('✅ extractData: Found items array');
@@ -224,12 +224,12 @@ const extractData = (response) => {
       console.log('✅ extractData: Found expenses array');
       return data.expenses;
     }
-    
+
     // If it's an object but not an array, return it as-is (might be a single object)
     console.log('✅ extractData: Returning object as-is');
     return data;
   }
-  
+
   console.log('✅ extractData: Returning data as-is');
   return data;
 };
@@ -244,18 +244,18 @@ export const authAPI = {
         [isEmail ? 'email' : 'username']: identifier
       };
       const response = await api.post('/auth/login', payload);
-      
+
       if (response.data?.token) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
       }
-      
+
       return response;
     } catch (error) {
       return handleApiError(error, 'login');
     }
   },
-  
+
   register: async (userData) => {
     try {
       return await api.post('/auth/register', userData);
@@ -263,7 +263,7 @@ export const authAPI = {
       return handleApiError(error, 'register');
     }
   },
-  
+
   getMe: async () => {
     try {
       return await api.get('/auth/me');
@@ -271,7 +271,7 @@ export const authAPI = {
       return handleApiError(error, 'getMe');
     }
   },
-  
+
   logout: async () => {
     try {
       await api.post('/auth/logout');
@@ -280,7 +280,7 @@ export const authAPI = {
       sessionStorage.clear();
     }
   },
-  
+
   refreshToken: async () => {
     try {
       return await api.post('/auth/refresh');
@@ -300,7 +300,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'getPurchases');
     }
   },
-  
+
   getPurchase: async (id) => {
     try {
       return await api.get(`/purchases/${id}`);
@@ -308,7 +308,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'getPurchase');
     }
   },
-  
+
   createPurchase: async (data) => {
     try {
       return await api.post('/purchases', data);
@@ -316,7 +316,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'createPurchase');
     }
   },
-  
+
   updatePurchase: async (id, data) => {
     try {
       return await api.put(`/purchases/${id}`, data);
@@ -324,7 +324,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'updatePurchase');
     }
   },
-  
+
   deletePurchase: async (id) => {
     try {
       return await api.delete(`/purchases/${id}`);
@@ -332,17 +332,17 @@ export const purchaseAPI = {
       return handleApiError(error, 'deletePurchase');
     }
   },
-  
+
   getDailyPurchases: async (date) => {
     try {
-      return await api.get('/purchases/daily', { 
-        params: { date } 
+      return await api.get('/purchases/daily', {
+        params: { date }
       });
     } catch (error) {
       return handleApiError(error, 'getDailyPurchases');
     }
   },
-  
+
   getPurchaseStats: async () => {
     try {
       return await api.get('/purchases/stats');
@@ -350,7 +350,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'getPurchaseStats');
     }
   },
-  
+
   getPurchaseDashboardStats: async () => {
     try {
       return await api.get('/purchases/dashboard-stats');
@@ -358,7 +358,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'getPurchaseDashboardStats');
     }
   },
-  
+
   // Purchase Orders
   getPurchaseOrders: async (params = {}) => {
     try {
@@ -367,7 +367,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'getPurchaseOrders');
     }
   },
-  
+
   getPurchaseOrder: async (id) => {
     try {
       return await api.get(`/purchase-orders/${id}`);
@@ -375,7 +375,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'getPurchaseOrder');
     }
   },
-  
+
   createPurchaseOrder: async (data) => {
     try {
       return await api.post('/purchase-orders', data);
@@ -383,7 +383,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'createPurchaseOrder');
     }
   },
-  
+
   updatePurchaseOrder: async (id, data) => {
     try {
       return await api.put(`/purchase-orders/${id}`, data);
@@ -391,7 +391,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'updatePurchaseOrder');
     }
   },
-  
+
   deletePurchaseOrder: async (id) => {
     try {
       return await api.delete(`/purchase-orders/${id}`);
@@ -399,7 +399,7 @@ export const purchaseAPI = {
       return handleApiError(error, 'deletePurchaseOrder');
     }
   },
-  
+
   approvePurchaseOrder: async (id) => {
     try {
       return await api.put(`/purchase-orders/${id}/approve`);
@@ -418,7 +418,7 @@ export const supplierAPI = {
       return handleApiError(error, 'getSuppliers');
     }
   },
-  
+
   getSupplier: async (id) => {
     try {
       return await api.get(`/suppliers/${id}`);
@@ -426,7 +426,7 @@ export const supplierAPI = {
       return handleApiError(error, 'getSupplier');
     }
   },
-  
+
   createSupplier: async (data) => {
     try {
       return await api.post('/suppliers', data);
@@ -434,7 +434,7 @@ export const supplierAPI = {
       return handleApiError(error, 'createSupplier');
     }
   },
-  
+
   updateSupplier: async (id, data) => {
     try {
       return await api.put(`/suppliers/${id}`, data);
@@ -442,7 +442,7 @@ export const supplierAPI = {
       return handleApiError(error, 'updateSupplier');
     }
   },
-  
+
   deleteSupplier: async (id) => {
     try {
       return await api.delete(`/suppliers/${id}`);
@@ -461,7 +461,7 @@ export const productAPI = {
       return handleApiError(error, 'getProducts');
     }
   },
-  
+
   getProduct: async (id) => {
     try {
       return await api.get(`/products/${id}`);
@@ -469,7 +469,7 @@ export const productAPI = {
       return handleApiError(error, 'getProduct');
     }
   },
-  
+
   createProduct: async (data) => {
     try {
       return await api.post('/products', data);
@@ -477,7 +477,7 @@ export const productAPI = {
       return handleApiError(error, 'createProduct');
     }
   },
-  
+
   updateProduct: async (id, data) => {
     try {
       return await api.put(`/products/${id}`, data);
@@ -485,7 +485,7 @@ export const productAPI = {
       return handleApiError(error, 'updateProduct');
     }
   },
-  
+
   deleteProduct: async (id) => {
     try {
       return await api.delete(`/products/${id}`);
@@ -493,7 +493,7 @@ export const productAPI = {
       return handleApiError(error, 'deleteProduct');
     }
   },
-  
+
   getCategories: async () => {
     try {
       return await api.get('/products/categories');
@@ -501,7 +501,7 @@ export const productAPI = {
       return handleApiError(error, 'getCategories');
     }
   },
-  
+
   getLowStockProducts: async () => {
     try {
       return await api.get('/products/low-stock');
@@ -509,7 +509,7 @@ export const productAPI = {
       return handleApiError(error, 'getLowStockProducts');
     }
   },
-  
+
   updateStock: async (id, stockData) => {
     try {
       return await api.patch(`/products/${id}/stock`, stockData);
@@ -528,7 +528,7 @@ export const orderAPI = {
       return handleApiError(error, 'getOrders');
     }
   },
-  
+
   getOrder: async (id) => {
     try {
       return await api.get(`/orders/${id}`);
@@ -536,7 +536,7 @@ export const orderAPI = {
       return handleApiError(error, 'getOrder');
     }
   },
-  
+
   createOrder: async (data) => {
     try {
       return await api.post('/orders', data);
@@ -544,7 +544,7 @@ export const orderAPI = {
       return handleApiError(error, 'createOrder');
     }
   },
-  
+
   updateOrder: async (id, data) => {
     try {
       return await api.put(`/orders/${id}`, data);
@@ -552,7 +552,7 @@ export const orderAPI = {
       return handleApiError(error, 'updateOrder');
     }
   },
-  
+
   deleteOrder: async (id) => {
     try {
       return await api.delete(`/orders/${id}`);
@@ -560,7 +560,7 @@ export const orderAPI = {
       return handleApiError(error, 'deleteOrder');
     }
   },
-  
+
   getKitchenOrders: async (params = {}) => {
     try {
       return await api.get('/orders/kitchen', { params });
@@ -568,7 +568,7 @@ export const orderAPI = {
       return handleApiError(error, 'getKitchenOrders');
     }
   },
-  
+
   updateOrderStatus: async (id, statusData) => {
     try {
       return await api.put(`/orders/${id}/status`, statusData);
@@ -576,7 +576,7 @@ export const orderAPI = {
       return handleApiError(error, 'updateOrderStatus');
     }
   },
-  
+
   processPayment: async (id, paymentData) => {
     try {
       return await api.post(`/orders/${id}/payment`, paymentData);
@@ -584,7 +584,7 @@ export const orderAPI = {
       return handleApiError(error, 'processPayment');
     }
   },
-  
+
   getOrderStats: async (period = 'today') => {
     try {
       return await api.get('/orders/stats', { params: { period } });
@@ -603,7 +603,7 @@ export const customerAPI = {
       return handleApiError(error, 'getCustomers');
     }
   },
-  
+
   getCustomer: async (id) => {
     try {
       return await api.get(`/customers/${id}`);
@@ -611,7 +611,7 @@ export const customerAPI = {
       return handleApiError(error, 'getCustomer');
     }
   },
-  
+
   createCustomer: async (data) => {
     try {
       return await api.post('/customers', data);
@@ -619,7 +619,7 @@ export const customerAPI = {
       return handleApiError(error, 'createCustomer');
     }
   },
-  
+
   updateCustomer: async (id, data) => {
     try {
       return await api.put(`/customers/${id}`, data);
@@ -627,7 +627,7 @@ export const customerAPI = {
       return handleApiError(error, 'updateCustomer');
     }
   },
-  
+
   deleteCustomer: async (id) => {
     try {
       return await api.delete(`/customers/${id}`);
@@ -635,7 +635,7 @@ export const customerAPI = {
       return handleApiError(error, 'deleteCustomer');
     }
   },
-  
+
   // Customer Ledger APIs
   getCustomerLedger: async (id, params = {}) => {
     try {
@@ -644,7 +644,7 @@ export const customerAPI = {
       return handleApiError(error, 'getCustomerLedger');
     }
   },
-  
+
   getCustomerSummary: async (id) => {
     try {
       return await api.get(`/customers/${id}/summary`);
@@ -652,7 +652,7 @@ export const customerAPI = {
       return handleApiError(error, 'getCustomerSummary');
     }
   },
-  
+
   addLedgerTransaction: async (data) => {
     try {
       return await api.post('/customers/ledger/transaction', data);
@@ -671,7 +671,7 @@ export const dashboardAPI = {
       return handleApiError(error, 'getDashboardStats');
     }
   },
-  
+
   getRevenueData: async (period = 'week') => {
     try {
       return await api.get('/dashboard/revenue', { params: { period } });
@@ -679,7 +679,7 @@ export const dashboardAPI = {
       return handleApiError(error, 'getRevenueData');
     }
   },
-  
+
   getTopProducts: async (limit = 5, period = 'month') => {
     try {
       return await api.get('/dashboard/top-products', { params: { limit, period } });
@@ -687,7 +687,7 @@ export const dashboardAPI = {
       return handleApiError(error, 'getTopProducts');
     }
   },
-  
+
   getRecentActivity: async (limit = 10) => {
     try {
       return await api.get('/dashboard/recent-activity', { params: { limit } });
@@ -706,7 +706,7 @@ export const inventoryAPI = {
       return handleApiError(error, 'getInventory');
     }
   },
-  
+
   updateInventory: async (id, data) => {
     try {
       return await api.put(`/inventory/${id}`, data);
@@ -714,7 +714,7 @@ export const inventoryAPI = {
       return handleApiError(error, 'updateInventory');
     }
   },
-  
+
   getInventoryReport: async (params = {}) => {
     try {
       return await api.get('/inventory/report', { params });
@@ -733,7 +733,7 @@ export const tableAPI = {
       return handleApiError(error, 'getTables');
     }
   },
-  
+
   getTable: async (id) => {
     try {
       return await api.get(`/tables/${id}`);
@@ -741,7 +741,7 @@ export const tableAPI = {
       return handleApiError(error, 'getTable');
     }
   },
-  
+
   createTable: async (data) => {
     try {
       return await api.post('/tables', data);
@@ -749,7 +749,7 @@ export const tableAPI = {
       return handleApiError(error, 'createTable');
     }
   },
-  
+
   updateTable: async (id, data) => {
     try {
       return await api.put(`/tables/${id}`, data);
@@ -757,7 +757,7 @@ export const tableAPI = {
       return handleApiError(error, 'updateTable');
     }
   },
-  
+
   deleteTable: async (id) => {
     try {
       return await api.delete(`/tables/${id}`);
@@ -765,7 +765,7 @@ export const tableAPI = {
       return handleApiError(error, 'deleteTable');
     }
   },
-  
+
   updateTableStatus: async (id, statusData) => {
     try {
       return await api.patch(`/tables/${id}/status`, statusData);
@@ -773,7 +773,7 @@ export const tableAPI = {
       return handleApiError(error, 'updateTableStatus');
     }
   },
-  
+
   getAvailableTables: async () => {
     try {
       return await api.get('/tables/available');
@@ -792,7 +792,7 @@ export const expenseAPI = {
       return handleApiError(error, 'getExpenses');
     }
   },
-  
+
   getExpense: async (id) => {
     try {
       return await api.get(`/expenses/${id}`);
@@ -800,7 +800,7 @@ export const expenseAPI = {
       return handleApiError(error, 'getExpense');
     }
   },
-  
+
   createExpense: async (data) => {
     try {
       return await api.post('/expenses', data);
@@ -808,7 +808,7 @@ export const expenseAPI = {
       return handleApiError(error, 'createExpense');
     }
   },
-  
+
   updateExpense: async (id, data) => {
     try {
       return await api.put(`/expenses/${id}`, data);
@@ -816,7 +816,7 @@ export const expenseAPI = {
       return handleApiError(error, 'updateExpense');
     }
   },
-  
+
   deleteExpense: async (id) => {
     try {
       return await api.delete(`/expenses/${id}`);
@@ -835,7 +835,7 @@ export const transactionAPI = {
       return handleApiError(error, 'getTransactions');
     }
   },
-  
+
   getTransaction: async (id) => {
     try {
       return await api.get(`/finance/transactions/${id}`);
@@ -843,7 +843,7 @@ export const transactionAPI = {
       return handleApiError(error, 'getTransaction');
     }
   },
-  
+
   createTransaction: async (data) => {
     try {
       return await api.post('/finance/transactions', data);
@@ -851,7 +851,7 @@ export const transactionAPI = {
       return handleApiError(error, 'createTransaction');
     }
   },
-  
+
   getFinanceDashboard: async () => {
     try {
       return await api.get('/finance/dashboard');
@@ -870,7 +870,7 @@ export const reportAPI = {
       return handleApiError(error, 'getPurchaseReports');
     }
   },
-  
+
   getInventoryReport: async (params = {}) => {
     try {
       return await api.get('/reports/inventory', { params });
@@ -878,7 +878,7 @@ export const reportAPI = {
       return handleApiError(error, 'getInventoryReport');
     }
   },
-  
+
   generateFinancialReport: async (data) => {
     try {
       return await api.post('/finance/reports/generate', data);
@@ -897,7 +897,7 @@ export const settingsAPI = {
       return handleApiError(error, 'getSettings');
     }
   },
-  
+
   updateSettings: async (data) => {
     try {
       return await api.put('/settings', data);
@@ -905,7 +905,7 @@ export const settingsAPI = {
       return handleApiError(error, 'updateSettings');
     }
   },
-  
+
   getBranchSettings: async (branchId) => {
     try {
       return await api.get(`/settings/branch/${branchId}`);
@@ -913,7 +913,7 @@ export const settingsAPI = {
       return handleApiError(error, 'getBranchSettings');
     }
   },
-  
+
   updateBranchSettings: async (branchId, data) => {
     try {
       return await api.put(`/settings/branch/${branchId}`, data);
@@ -921,7 +921,7 @@ export const settingsAPI = {
       return handleApiError(error, 'updateBranchSettings');
     }
   },
-  
+
   uploadBranchLogo: async (branchId, formData) => {
     try {
       return await api.post(`/settings/branch/${branchId}/logo`, formData, {
@@ -931,7 +931,7 @@ export const settingsAPI = {
       return handleApiError(error, 'uploadBranchLogo');
     }
   },
-  
+
   getSystemSettings: async () => {
     try {
       return await api.get('/settings/system');
@@ -950,7 +950,7 @@ export const userAPI = {
       return handleApiError(error, 'getUsers');
     }
   },
-  
+
   getUser: async (id) => {
     try {
       return await api.get(`/users/${id}`);
@@ -958,7 +958,7 @@ export const userAPI = {
       return handleApiError(error, 'getUser');
     }
   },
-  
+
   createUser: async (data) => {
     try {
       return await api.post('/users', data);
@@ -966,7 +966,7 @@ export const userAPI = {
       return handleApiError(error, 'createUser');
     }
   },
-  
+
   updateUser: async (id, data) => {
     try {
       return await api.put(`/users/${id}`, data);
@@ -974,7 +974,7 @@ export const userAPI = {
       return handleApiError(error, 'updateUser');
     }
   },
-  
+
   deleteUser: async (id) => {
     try {
       return await api.delete(`/users/${id}`);
@@ -990,7 +990,7 @@ export const realApi = {
   api,
   API_CONFIG,
   extractData,
-  
+
   // APIs by category
   auth: authAPI,
   purchases: purchaseAPI,
@@ -1006,7 +1006,7 @@ export const realApi = {
   settings: settingsAPI,
   users: userAPI,
   inventory: inventoryAPI,
-  
+
   // Flatten commonly used methods for backwards compatibility
   // Auth
   login: authAPI.login,
@@ -1138,7 +1138,7 @@ export const realApi = {
       };
     }
   },
-  
+
   // Optional audit logs API (falls back if not available)
   getAuditLogs: async (params = {}) => {
     try {
@@ -1159,9 +1159,9 @@ export const realApi = {
 // For compatibility
 export const demoLocalAPI = {
   simulateDelay: () => new Promise(resolve => setTimeout(resolve, 0)),
-  getDemoPurchases: async () => ({ 
-    success: false, 
-    message: 'Real API is required. Backend might be down.' 
+  getDemoPurchases: async () => ({
+    success: false,
+    message: 'Real API is required. Backend might be down.'
   }),
   // Add other demo methods that return error messages
 };

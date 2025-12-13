@@ -4,8 +4,15 @@
  */
 
 // Detect if we're in production
-const isProduction = import.meta.env.MODE === 'production' || 
-                     window.location.hostname !== 'localhost';
+const isLocal = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  /^192\.168\./.test(window.location.hostname) ||
+  /^10\./.test(window.location.hostname) ||
+  /^172\.(1[6-9]|2\d|3[0-1])\./.test(window.location.hostname)
+);
+
+const isProduction = import.meta.env.MODE === 'production' && !isLocal;
 
 // Get the appropriate API URL based on environment
 const getApiUrl = () => {
@@ -18,15 +25,40 @@ const getApiUrl = () => {
     if (v.startsWith('/')) return backend + v;
     return backend + '/' + v;
   }
-  // Environment variable next
-  if (typeof window !== 'undefined' && /vercel\.app$/i.test(window.location.hostname)) {
-    return 'https://mama-africa1.onrender.com/api/v1';
+
+  // Explicitly check for known production domains
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // If we are on the production domain (render or vercel), use production API
+    if (hostname.includes('onrender.com') || hostname.includes('vercel.app')) {
+      return (import.meta.env.VITE_PRODUCTION_API_URL || 'https://mama-africa1.onrender.com/api/v1');
+    }
   }
+
+  // If VITE_API_URL is explicitly set (e.g. in .env), respect it, BUT check if it points to prod while validly local
+  // Ideally, we trust the .env, but if the user has a stale .env pointing to prod, it causes issues.
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+    const envUrl = import.meta.env.VITE_API_URL;
+    // Check if this is a production URL being used in a non-production environment
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      const isProdDomain = hostname.includes('onrender.com') || hostname.includes('vercel.app');
+      const isProdUrl = envUrl.includes('onrender.com') || envUrl.includes('vercel.app');
+
+      if (isProdUrl && !isProdDomain) {
+        console.warn('⚠️ Ignoring production VITE_API_URL in local environment:', envUrl);
+        // Fall through to default local behavior (return /api/v1)
+      } else {
+        return envUrl;
+      }
+    } else {
+      return envUrl;
+    }
   }
-  // Fallback to production URL (live backend)
-  return (import.meta.env.VITE_PRODUCTION_API_URL || 'https://mama-africa1.onrender.com/api/v1');
+
+  // Default to relative path /api/v1 for ALL other cases (localhost, local IP, custom local domain)
+  // This allows the proxy to handle the request to localhost:5000
+  return '/api/v1';
 };
 
 const getBackendUrl = () => {
@@ -34,25 +66,32 @@ const getBackendUrl = () => {
   if (typeof window !== 'undefined' && window.__APP_CONFIG__ && window.__APP_CONFIG__.apiBaseUrl) {
     return window.__APP_CONFIG__.apiBaseUrl.replace('/api/v1', '');
   }
+
+  // Explicitly check for known production domains
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname.includes('onrender.com') || hostname.includes('vercel.app')) {
+      return 'https://mama-africa1.onrender.com';
+    }
+  }
+
   // Environment variable next
   if (import.meta.env.VITE_BACKEND_URL) {
     return import.meta.env.VITE_BACKEND_URL;
   }
-  // Fallback to production URL (live backend)
-  return 'https://mama-africa1.onrender.com';
+
+  // Default to local server on port 5000 for all other cases
+  if (typeof window !== 'undefined') {
+    return 'http://' + window.location.hostname + ':5000';
+  }
+
+  return 'http://localhost:5000';
 };
 
 const getSocketUrl = () => {
-  // Derive from runtime API if present
-  if (typeof window !== 'undefined' && window.__APP_CONFIG__ && window.__APP_CONFIG__.apiBaseUrl) {
-    return window.__APP_CONFIG__.apiBaseUrl.replace('/api/v1', '');
-  }
-  // Environment variable next
-  if (import.meta.env.VITE_SOCKET_URL) {
-    return import.meta.env.VITE_SOCKET_URL;
-  }
-  // Fallback to production URL (live backend)
-  return 'https://mama-africa1.onrender.com';
+  // Reuse backend URL logic but ensure no trailing slash if needed
+  const backendUrl = getBackendUrl();
+  return backendUrl;
 };
 
 export const API_CONFIG = {

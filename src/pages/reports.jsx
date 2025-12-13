@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
+import { API_CONFIG } from '../config/api.config';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatDate, formatTime, formatCurrency } from '../utils/date';
 import { io } from 'socket.io-client';
@@ -61,7 +62,7 @@ const Reports = () => {
   useEffect(() => {
     loadInitialData();
     setupSocketConnection();
-    
+
     return () => {
       if (socket) {
         socket.disconnect();
@@ -76,7 +77,7 @@ const Reports = () => {
   }, [activeReport, filters, currentPage]);
 
   const setupSocketConnection = () => {
-    const SOCKET_URL = ((window.__APP_CONFIG__ && window.__APP_CONFIG__.apiBaseUrl) || import.meta.env.VITE_API_URL || 'https://mama-africa1.onrender.com/api/v1').replace('/api/v1','');
+    const SOCKET_URL = API_CONFIG.SOCKET_URL;
     const newSocket = io(SOCKET_URL, { transports: ['websocket'] });
     setSocket(newSocket);
 
@@ -115,7 +116,7 @@ const Reports = () => {
       if (productsResponse.success) {
         const productsData = realApi.extractData(productsResponse) || [];
         setProducts(productsData);
-        
+
         // Extract unique categories
         const uniqueCategories = [...new Set(productsData.map(p => p.category).filter(Boolean))];
         setCategories(uniqueCategories);
@@ -144,48 +145,48 @@ const Reports = () => {
         case 'payment':
           data = await loadPaymentReport(startDate, endDate);
           break;
-        
+
         case 'mobile-payment':
           data = await loadMobilePaymentReport(startDate, endDate);
           break;
-        
+
         case 'sms-payment':
           data = await loadSmsPaymentReport(startDate, endDate);
           break;
-        
+
         case 'orders':
         case 'sale':
           data = await loadOrdersReport(startDate, endDate, reportId === 'sale');
           break;
-        
+
         case 'product':
           data = await loadProductReport();
           break;
-        
+
         case 'daily-summary':
           data = await loadDailySummaryReport(startDate, endDate);
           break;
-        
+
         case 'inventory':
           data = await loadInventoryReport();
           break;
-        
+
         case 'customer':
           data = await loadCustomerReport(startDate, endDate);
           break;
-        
+
         case 'audit-trail':
           data = await loadAuditTrailReport(startDate, endDate);
           break;
-        
+
         case 'previous-payment':
           data = await loadPreviousPaymentReport(startDate, endDate);
           break;
-        
+
         case 'advance':
           data = await loadAdvanceReport(startDate, endDate);
           break;
-        
+
         default:
           data = { type: 'coming-soon', message: 'This report is coming soon' };
       }
@@ -210,14 +211,14 @@ const Reports = () => {
     if (!response.success) throw new Error('Failed to load payment data');
 
     let orders = realApi.extractData(response) || [];
-    
+
     // Apply filters
     orders = applyOrderFilters(orders);
-    
+
     // Group by payment method
     const paymentGroups = {};
     const mobilePaymentMethods = ['zaad', 'sahal', 'edahab', 'mycash', 'mobile'];
-    
+
     orders.forEach(order => {
       const method = (order.paymentMethod || 'cash').toLowerCase();
       if (!paymentGroups[method]) {
@@ -256,17 +257,17 @@ const Reports = () => {
 
     let orders = realApi.extractData(response) || [];
     const mobileMethods = ['zaad', 'sahal', 'edahab', 'mycash', 'mobile'];
-    
-    orders = orders.filter(order => 
+
+    orders = orders.filter(order =>
       mobileMethods.includes((order.paymentMethod || '').toLowerCase())
     );
-    
+
     // Apply additional filters
     orders = applyOrderFilters(orders);
-    
+
     // Group by mobile payment method
     const mobileGroups = {};
-    
+
     orders.forEach(order => {
       const method = (order.paymentMethod || 'mobile').toLowerCase();
       if (!mobileGroups[method]) {
@@ -396,10 +397,10 @@ const Reports = () => {
         cost: 0,
         profit: 0
       };
-      
+
       const cost = (product.costPrice || product.cost || 0) * sales.quantitySold;
       const profit = sales.revenue - cost;
-      
+
       return {
         ...product,
         ...sales,
@@ -413,13 +414,13 @@ const Reports = () => {
     // Apply filters
     let filteredProducts = productsWithSales;
     if (filters.category) {
-      filteredProducts = filteredProducts.filter(p => 
+      filteredProducts = filteredProducts.filter(p =>
         p.category?.toLowerCase() === filters.category.toLowerCase()
       );
     }
     if (filters.product) {
       const searchTerm = filters.product.toLowerCase();
-      filteredProducts = filteredProducts.filter(p => 
+      filteredProducts = filteredProducts.filter(p =>
         p.name.toLowerCase().includes(searchTerm)
       );
     }
@@ -462,12 +463,12 @@ const Reports = () => {
           cardAmount: 0
         };
       }
-      
+
       dailySummary[date].orders.push(order);
       dailySummary[date].totalAmount += order.finalTotal || order.totalAmount || 0;
       dailySummary[date].orderCount++;
       dailySummary[date].vat += order.taxAmount || 0;
-      
+
       const method = (order.paymentMethod || 'cash').toLowerCase();
       if (method === 'cash') {
         dailySummary[date].cashAmount += order.finalTotal || order.totalAmount || 0;
@@ -529,13 +530,13 @@ const Reports = () => {
     // Apply filters
     let filteredInventory = inventoryData;
     if (filters.category) {
-      filteredInventory = filteredInventory.filter(p => 
+      filteredInventory = filteredInventory.filter(p =>
         p.category?.toLowerCase() === filters.category.toLowerCase()
       );
     }
     if (filters.product) {
       const searchTerm = filters.product.toLowerCase();
-      filteredInventory = filteredInventory.filter(p => 
+      filteredInventory = filteredInventory.filter(p =>
         p.name.toLowerCase().includes(searchTerm)
       );
     }
@@ -584,7 +585,7 @@ const Reports = () => {
       customerData[customerId].totalSpent += order.finalTotal || order.totalAmount || 0;
       customerData[customerId].orderCount++;
       customerData[customerId].averageOrderValue = customerData[customerId].totalSpent / customerData[customerId].orderCount;
-      
+
       const orderDate = new Date(order.createdAt || order.orderDate);
       const lastDate = new Date(customerData[customerId].lastOrderDate);
       if (orderDate > lastDate) {
@@ -715,7 +716,7 @@ const Reports = () => {
     // Payment method filter
     if (filters.paymentMethod) {
       const method = filters.paymentMethod.toLowerCase();
-      filtered = filtered.filter(order => 
+      filtered = filtered.filter(order =>
         (order.paymentMethod || '').toLowerCase() === method
       );
     }
@@ -723,7 +724,7 @@ const Reports = () => {
     // Customer filter
     if (filters.customer) {
       const searchTerm = filters.customer.toLowerCase();
-      filtered = filtered.filter(order => 
+      filtered = filtered.filter(order =>
         (order.customer?.name || order.customerName || '').toLowerCase().includes(searchTerm)
       );
     }
@@ -740,8 +741,8 @@ const Reports = () => {
 
     // Cashier filter
     if (filters.cashier) {
-      filtered = filtered.filter(order => 
-        order.cashier?._id === filters.cashier || 
+      filtered = filtered.filter(order =>
+        order.cashier?._id === filters.cashier ||
         order.cashier?.name?.toLowerCase() === filters.cashier.toLowerCase()
       );
     }
@@ -779,7 +780,7 @@ const Reports = () => {
           lowStockCount: 0
         });
         break;
-      
+
       case 'product':
         setSummary({
           totalAmount: data.totalRevenue || 0,
@@ -794,7 +795,7 @@ const Reports = () => {
           totalProfit: data.totalProfit || 0
         });
         break;
-      
+
       case 'inventory':
         setSummary({
           totalAmount: data.totalValue || 0,
@@ -808,7 +809,7 @@ const Reports = () => {
           lowStockCount: data.lowStockCount || 0
         });
         break;
-      
+
       case 'customer':
         setSummary({
           totalAmount: data.totalRevenue || 0,
@@ -822,7 +823,7 @@ const Reports = () => {
           lowStockCount: 0
         });
         break;
-      
+
       case 'audit-trail':
         setSummary({
           totalAmount: 0,
@@ -836,7 +837,7 @@ const Reports = () => {
           lowStockCount: 0
         });
         break;
-      
+
       case 'advance':
         setSummary({
           totalAmount: data.totalAdvance || 0,
@@ -850,7 +851,7 @@ const Reports = () => {
           lowStockCount: 0
         });
         break;
-      
+
       default:
         setSummary({
           totalAmount: 0,
@@ -883,7 +884,7 @@ const Reports = () => {
 
   const exportReport = () => {
     if (!reportData || reportData.type === 'coming-soon' || reportData.type === 'error') return;
-    
+
     let csv = '';
     let filename = `${activeReport}-report-${filters.startDate}-${filters.endDate}.csv`;
 
@@ -901,7 +902,7 @@ const Reports = () => {
         ]);
         csv = [paymentHeaders, ...paymentRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'mobile-payment':
         const mobileHeaders = ['Order Number', 'Date', 'Customer', 'Amount', 'Mobile Payment Method', 'Status', 'VAT'];
         const mobileRows = reportData.orders.map(order => [
@@ -915,7 +916,7 @@ const Reports = () => {
         ]);
         csv = [mobileHeaders, ...mobileRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'orders':
         const orderHeaders = ['Order Number', 'Date', 'Customer', 'Amount', 'Payment Status', 'Order Status', 'Payment Method', 'VAT'];
         const orderRows = reportData.orders.map(order => [
@@ -930,7 +931,7 @@ const Reports = () => {
         ]);
         csv = [orderHeaders, ...orderRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'product':
         const productHeaders = ['Product Name', 'Category', 'Price', 'Cost', 'Stock', 'Quantity Sold', 'Revenue', 'Profit', 'Profit Margin %'];
         const productRows = reportData.products.map(product => [
@@ -946,7 +947,7 @@ const Reports = () => {
         ]);
         csv = [productHeaders, ...productRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'daily-summary':
         const dailyHeaders = ['Date', 'Total Orders', 'Total Amount', 'VAT', 'Cash Amount', 'Mobile Amount', 'Card Amount'];
         const dailyRows = reportData.dailySummary.map(day => [
@@ -960,7 +961,7 @@ const Reports = () => {
         ]);
         csv = [dailyHeaders, ...dailyRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'inventory':
         const inventoryHeaders = ['Product Name', 'Category', 'Stock', 'Low Stock Threshold', 'Status', 'Cost Price', 'Stock Value', 'Usage'];
         const inventoryRows = reportData.inventory.map(item => [
@@ -975,7 +976,7 @@ const Reports = () => {
         ]);
         csv = [inventoryHeaders, ...inventoryRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'customer':
         const customerHeaders = ['Customer Name', 'Total Orders', 'Total Spent', 'Average Order Value', 'Last Order Date'];
         const customerRows = reportData.customers.map(customer => [
@@ -987,7 +988,7 @@ const Reports = () => {
         ]);
         csv = [customerHeaders, ...customerRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'audit-trail':
         const auditHeaders = ['Timestamp', 'User', 'Action', 'Details', 'IP Address'];
         const auditRows = reportData.logs.map(log => [
@@ -999,7 +1000,7 @@ const Reports = () => {
         ]);
         csv = [auditHeaders, ...auditRows].map(row => row.join(',')).join('\n');
         break;
-      
+
       case 'advance':
         const advanceHeaders = ['Order Number', 'Date', 'Customer', 'Total Amount', 'Advance Paid', 'Balance Due', 'Payment Method'];
         const advanceRows = reportData.orders.map(order => [
@@ -1101,7 +1102,7 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
-              
+
               {renderPagination(totalPaymentPages)}
             </div>
           </div>
@@ -1162,7 +1163,7 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
-              
+
               {renderPagination(totalMobilePages)}
             </div>
           </div>
@@ -1222,11 +1223,10 @@ const Reports = () => {
                           {formatCurrency((product.costPrice || product.cost || 0), settings?.currency || 'USD')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            product.stockStatus === 'out-of-stock' ? 'bg-red-100 text-red-800' :
-                            product.stockStatus === 'low-stock' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.stockStatus === 'out-of-stock' ? 'bg-red-100 text-red-800' :
+                              product.stockStatus === 'low-stock' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                            }`}>
                             {product.stock || 0}
                           </span>
                         </td>
@@ -1240,11 +1240,10 @@ const Reports = () => {
                           {formatCurrency(product.profit || 0, settings?.currency || 'USD')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            (product.profitMargin || 0) > 50 ? 'bg-green-100 text-green-800' :
-                            (product.profitMargin || 0) > 30 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${(product.profitMargin || 0) > 50 ? 'bg-green-100 text-green-800' :
+                              (product.profitMargin || 0) > 30 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                            }`}>
                             {(product.profitMargin || 0).toFixed(1)}%
                           </span>
                         </td>
@@ -1253,7 +1252,7 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
-              
+
               {renderPagination(totalProductPages)}
             </div>
           </div>
@@ -1308,7 +1307,7 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
-              
+
               {renderPagination(totalDailyPages)}
             </div>
           </div>
@@ -1371,11 +1370,10 @@ const Reports = () => {
                           {item.stock || 0}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            item.stockStatus === 'out-of-stock' ? 'bg-red-100 text-red-800' :
-                            item.stockStatus === 'low-stock' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.stockStatus === 'out-of-stock' ? 'bg-red-100 text-red-800' :
+                              item.stockStatus === 'low-stock' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                            }`}>
                             {item.stockStatus || 'Unknown'}
                           </span>
                         </td>
@@ -1406,7 +1404,7 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
-              
+
               {renderPagination(totalInventoryPages)}
             </div>
           </div>
@@ -1479,7 +1477,7 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
-              
+
               {renderPagination(totalCustomerPages)}
             </div>
           </div>
@@ -1512,12 +1510,11 @@ const Reports = () => {
                           {log.user || 'System'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            log.action.includes('PAYMENT') ? 'bg-green-100 text-green-800' :
-                            log.action.includes('ORDER') ? 'bg-blue-100 text-blue-800' :
-                            log.action.includes('UPDATE') ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${log.action.includes('PAYMENT') ? 'bg-green-100 text-green-800' :
+                              log.action.includes('ORDER') ? 'bg-blue-100 text-blue-800' :
+                                log.action.includes('UPDATE') ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                            }`}>
                             {log.action}
                           </span>
                         </td>
@@ -1532,7 +1529,7 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
-              
+
               {renderPagination(totalAuditPages)}
             </div>
           </div>
@@ -1750,7 +1747,7 @@ const Reports = () => {
               className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
             />
           </div>
-          
+
           {!isProductReport && !isAuditReport && (
             <>
               <div>
@@ -1894,7 +1891,7 @@ const Reports = () => {
   // Show report detail view
   if (activeReport && reportData) {
     const selectedReport = reportTypes.find(r => r.id === activeReport);
-    
+
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Header */}

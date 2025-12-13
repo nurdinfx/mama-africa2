@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
+import { API_CONFIG } from '../config/api.config';
 
 const POS = () => {
   const [products, setProducts] = useState([]);
@@ -124,7 +125,7 @@ const POS = () => {
     }
 
     // Get backend URL from environment
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'https://mama-africa1.vercel.app';
+    const backendUrl = API_CONFIG.BACKEND_URL;
 
     // If it's a relative path (starts with /uploads), construct full URL
     if (product.image.startsWith('/uploads')) {

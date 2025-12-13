@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
+import { API_CONFIG } from '../config/api.config';
 
 const Inventory = () => {
   const [products, setProducts] = useState([]);
@@ -34,10 +35,10 @@ const Inventory = () => {
     try {
       setLoading(true);
       setError('');
-      
+
       const response = await realApi.getProducts();
       console.log('🛒 Products API response:', response);
-      
+
       if (response.success) {
         const productsData = realApi.extractData(response) || [];
         console.log('🛒 Extracted products data:', productsData.length, 'products');
@@ -94,9 +95,9 @@ const Inventory = () => {
   const handleSaveProduct = async (productData) => {
     try {
       console.log('Saving product:', productData);
-      
+
       let response;
-      
+
       if (editingProduct) {
         response = await realApi.updateProduct(editingProduct._id, productData);
       } else {
@@ -123,7 +124,7 @@ const Inventory = () => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         const response = await realApi.deleteProduct(productId);
-        
+
         if (response.success) {
           setProducts(prev => prev.filter(p => p._id !== productId));
         } else {
@@ -139,7 +140,7 @@ const Inventory = () => {
   const updateStock = async (productId, newStock) => {
     try {
       const response = await realApi.updateStock(productId, { stock: newStock });
-      
+
       if (response.success) {
         setProducts(prev =>
           prev.map(p =>
@@ -266,16 +267,16 @@ const Inventory = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.isArray(filteredProducts) && filteredProducts.map(product => {
           const stockStatus = getStockStatus(product.stock, product.minStock);
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'https://mama-africa1.onrender.com';
-          const imageUrl = product.image 
+          const backendUrl = API_CONFIG.BACKEND_URL;
+          const imageUrl = product.image
             ? (product.image.startsWith('http') ? product.image : `${backendUrl}${product.image}`)
             : 'https://via.placeholder.com/200x200?text=No+Image';
-          
+
           return (
             <div key={product._id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
               <div className="h-48 bg-gray-200 overflow-hidden">
-                <img 
-                  src={imageUrl} 
+                <img
+                  src={imageUrl}
                   alt={product.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -290,9 +291,9 @@ const Inventory = () => {
                     {stockStatus.text}
                   </span>
                 </div>
-                
+
                 <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
-                
+
                 <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                   <div>
                     <span className="text-gray-500">Category:</span>
@@ -376,16 +377,16 @@ const Inventory = () => {
 };
 
 // Product Modal Component
-const ProductModal = ({ 
-  product, 
-  categories, 
-  newCategory, 
-  setNewCategory, 
-  showNewCategory, 
-  setShowNewCategory, 
-  addNewCategory, 
-  onClose, 
-  onSave 
+const ProductModal = ({
+  product,
+  categories,
+  newCategory,
+  setNewCategory,
+  showNewCategory,
+  setShowNewCategory,
+  addNewCategory,
+  onClose,
+  onSave
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -448,7 +449,7 @@ const ProductModal = ({
       const uploadFormData = new FormData();
       uploadFormData.append('image', file);
 
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://mama-africa1.onrender.com/api/v1';
+      const apiUrl = API_CONFIG.API_URL;
       const response = await fetch(`${apiUrl}/upload`, {
         method: 'POST',
         body: uploadFormData,
@@ -499,7 +500,7 @@ const ProductModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -575,8 +576,8 @@ const ProductModal = ({
               </label>
               <div className="flex items-center space-x-4">
                 {formData.image && (
-                  <img 
-                    src={formData.image.startsWith('http') ? formData.image : `${import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'https://mama-africa1.onrender.com'}${formData.image}`}
+                  <img
+                    src={formData.image.startsWith('http') ? formData.image : `${API_CONFIG.BACKEND_URL}${formData.image}`}
                     alt="Preview"
                     className="w-16 h-16 object-cover rounded border"
                     onError={(e) => {
@@ -608,9 +609,8 @@ const ProductModal = ({
                 value={formData.name}
                 onChange={handleChange}
                 required
-                className={`w-full border rounded-lg px-3 py-2 ${
-                  formErrors.name ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full border rounded-lg px-3 py-2 ${formErrors.name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 placeholder="Enter product name"
               />
               {formErrors.name && <p className="text-sm text-red-600 mt-1">{formErrors.name}</p>}
@@ -640,9 +640,8 @@ const ProductModal = ({
                     name="category"
                     value={formData.category}
                     onChange={handleCategoryChange}
-                    className={`w-full border rounded-lg px-3 py-2 ${
-                      formErrors.category ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full border rounded-lg px-3 py-2 ${formErrors.category ? 'border-red-500' : 'border-gray-300'
+                      }`}
                   >
                     <option value="">Select Category</option>
                     {categories.map(cat => (
@@ -709,9 +708,8 @@ const ProductModal = ({
                   step="0.01"
                   min="0"
                   required
-                  className={`w-full border rounded-lg px-3 py-2 ${
-                    formErrors.price ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className={`w-full border rounded-lg px-3 py-2 ${formErrors.price ? 'border-red-500' : 'border-gray-300'
+                    }`}
                   placeholder="0.00"
                 />
                 {formErrors.price && <p className="text-sm text-red-600 mt-1">{formErrors.price}</p>}
@@ -746,9 +744,8 @@ const ProductModal = ({
                   onChange={handleChange}
                   min="0"
                   required
-                  className={`w-full border rounded-lg px-3 py-2 ${
-                    formErrors.stock ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className={`w-full border rounded-lg px-3 py-2 ${formErrors.stock ? 'border-red-500' : 'border-gray-300'
+                    }`}
                 />
                 {formErrors.stock && <p className="text-sm text-red-600 mt-1">{formErrors.stock}</p>}
               </div>

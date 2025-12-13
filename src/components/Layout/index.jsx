@@ -6,17 +6,27 @@ import Header from './Header';
 
 const Layout = () => {
   const { user } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
   if (!user) {
     return <Outlet />;
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar />
-      <div className="flex-1 flex flex-col ml-64">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+
+      <div className="flex-1 flex flex-col md:ml-64 w-full transition-all duration-300">
+        <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 overflow-x-hidden">
           <Outlet />
         </main>
       </div>
