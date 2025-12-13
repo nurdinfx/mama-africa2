@@ -1026,7 +1026,7 @@ const Orders = () => {
         </div>
       </div>
 
-      <div className="p-2 sm:p-4" style={{ height: 'calc(100vh - 120px)', overflowY: 'auto', overflowX: 'hidden' }}>
+      <div className="p-2 sm:p-4">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-4">
           <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">

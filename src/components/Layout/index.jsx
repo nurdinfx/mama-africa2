@@ -13,7 +13,7 @@ const Layout = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
+    <div className="flex min-h-screen bg-gray-100">
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div
@@ -24,9 +24,9 @@ const Layout = () => {
 
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      <div className="flex-1 flex flex-col md:ml-64 w-full transition-all duration-300">
+      <div className="flex-1 flex flex-col md:ml-64 w-full transition-all duration-300 min-h-screen">
         <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 overflow-x-hidden">
+        <main className="flex-1 p-4 md:p-6 w-full max-w-full">
           <Outlet />
         </main>
       </div>

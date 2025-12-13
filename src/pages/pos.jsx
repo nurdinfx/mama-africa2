@@ -524,7 +524,7 @@ const POS = () => {
   const currencySymbol = getCurrencySymbol();
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen bg-gray-50 overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)] bg-gray-50 overflow-hidden">
       {/* Products Section - 70% width on desktop, full width on mobile */}
       <div className="flex-1 p-2 sm:p-4 overflow-hidden flex flex-col min-w-0">
         {/* Header Section */}
