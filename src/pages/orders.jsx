@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
+import { API_CONFIG } from '../config/api.config';
 import { io } from 'socket.io-client';
 import { setCache, getCache } from '../services/offlineCache';
 import { enqueue } from '../services/offlineQueue';
@@ -47,7 +48,7 @@ const Orders = () => {
     loadOrders();
     loadRestaurantSettings();
     setupSocketConnection();
-    
+
     const interval = setInterval(loadOrders, 15000);
     return () => {
       clearInterval(interval);
@@ -55,10 +56,10 @@ const Orders = () => {
   }, []);
 
   const setupSocketConnection = () => {
-    const SOCKET_URL = ((window.__APP_CONFIG__ && window.__APP_CONFIG__.apiBaseUrl) || import.meta.env.VITE_API_URL || 'https://mama-africa1.onrender.com/api/v1').replace('/api/v1','');
+    const SOCKET_URL = API_CONFIG.SOCKET_URL;
     const socket = io(SOCKET_URL, { transports: ['websocket'] });
     const branchId = user?.branch?._id;
-    
+
     if (branchId) {
       socket.emit('join-branch', branchId);
     }
@@ -67,13 +68,13 @@ const Orders = () => {
     socket.on('new-order', (order) => {
       if (!order || (branchId && String(order.branch) !== String(branchId))) return;
       console.log('New order received from POS:', order);
-      
+
       setOrders(prev => {
         const exists = prev.some(o => o._id === order._id);
         const updated = exists ? prev.map(o => o._id === order._id ? order : o) : [order, ...prev];
         return updated;
       });
-      
+
       // Also update kitchen orders if applicable
       if (order.status === 'pending' || order.status === 'confirmed' || order.status === 'preparing') {
         setKitchenOrders(prev => {
@@ -81,7 +82,7 @@ const Orders = () => {
           return exists ? prev.map(o => o._id === order._id ? order : o) : [order, ...prev];
         });
       }
-      
+
       // Show notification for new order
       showNotification(`New order #${order.orderNumber} received from POS`);
     });
@@ -90,12 +91,12 @@ const Orders = () => {
     socket.on('order-status-updated', (order) => {
       if (!order || (branchId && String(order.branch) !== String(branchId))) return;
       console.log('Order status updated from kitchen:', order);
-      
+
       setOrders(prev => prev.map(o => o._id === order._id ? order : o));
-      
+
       // Update kitchen orders
       setKitchenOrders(prev => prev.map(o => o._id === order._id ? order : o));
-      
+
       showNotification(`Order #${order.orderNumber} status updated to ${order.status}`);
     });
 
@@ -103,7 +104,7 @@ const Orders = () => {
     socket.on('order-completed', (order) => {
       if (!order || (branchId && String(order.branch) !== String(branchId))) return;
       console.log('Order completed:', order);
-      
+
       setOrders(prev => prev.map(o => o._id === order._id ? order : o));
       showNotification(`Order #${order.orderNumber} completed`);
     });
@@ -112,7 +113,7 @@ const Orders = () => {
     socket.on('pos-order-updated', (order) => {
       if (!order || (branchId && String(order.branch) !== String(branchId))) return;
       console.log('POS order updated:', order);
-      
+
       setOrders(prev => prev.map(o => o._id === order._id ? order : o));
       showNotification(`Order #${order.orderNumber} updated from POS`);
     });
@@ -139,7 +140,7 @@ const Orders = () => {
         }
       });
     }
-    
+
     // Also show browser alert as fallback
     console.log("Notification:", message);
   };
@@ -167,10 +168,10 @@ const Orders = () => {
       setLoading(true);
       setError('');
       console.log('🔄 Loading orders from backend...');
-      
+
       const response = await realApi.getOrders();
       console.log('📋 Orders API response:', response);
-      
+
       if (response.success) {
         const ordersData = realApi.extractData(response) || [];
         console.log('📋 Extracted orders data:', ordersData.length, 'orders');
@@ -226,7 +227,7 @@ const Orders = () => {
   const generateRealOrderId = (index) => {
     const realIds = [
       '1.14, 2055',
-      '2.11, 3399999999999', 
+      '2.11, 3399999999999',
       '2.2',
       '5.46',
       '4.83',
@@ -242,7 +243,7 @@ const Orders = () => {
       '1.14, 2055',
       '2.11, 3399999999999',
       '2.2',
-      '5.46', 
+      '5.46',
       '4.83',
       '1.47'
     ];
@@ -314,14 +315,14 @@ const Orders = () => {
   };
 
   const updateKitchenOrders = () => {
-    const kitchenOrders = orders.filter(order => 
+    const kitchenOrders = orders.filter(order =>
       ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status)
     );
     setKitchenOrders(kitchenOrders);
   };
 
   const updatePendingCount = () => {
-    const pending = orders.filter(order => 
+    const pending = orders.filter(order =>
       ['pending', 'confirmed', 'preparing'].includes(order.status)
     ).length;
     setPendingOrdersCount(pending);
@@ -333,14 +334,14 @@ const Orders = () => {
     const pending = filtered.filter(o => o.paymentStatus !== 'paid');
     const pendingAmount = pending.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0);
     const totalAmount = filtered.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0);
-    
+
     setSummary({ vat, pending: pendingAmount, totalAmount });
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       const response = await realApi.updateOrderStatus(orderId, { status: newStatus });
-      
+
       if (response.success) {
         setOrders(prev =>
           prev.map(order =>
@@ -360,7 +361,7 @@ const Orders = () => {
   const updateKitchenOrderStatus = async (orderId, kitchenStatus) => {
     try {
       const response = await realApi.updateOrderStatus(orderId, { kitchenStatus });
-      
+
       if (response.success) {
         const updated = response.data || { _id: orderId, kitchenStatus };
         setOrders(prev =>
@@ -386,12 +387,12 @@ const Orders = () => {
   const processPayment = async (orderId, paymentData) => {
     try {
       const response = await realApi.processPayment(orderId, paymentData);
-      
+
       if (response.success) {
         setOrders(prev =>
           prev.map(order =>
-            order._id === orderId ? { 
-              ...order, 
+            order._id === orderId ? {
+              ...order,
               paymentStatus: 'paid',
               status: 'completed',
               paymentMethod: paymentData.paymentMethod,
@@ -478,7 +479,7 @@ const Orders = () => {
     const taxRate = 0.05; // 5% tax to match POS
     const tax = subtotal * taxRate;
     const finalTotal = subtotal + tax;
-    
+
     return { subtotal, tax, finalTotal };
   };
 
@@ -491,7 +492,7 @@ const Orders = () => {
 
       // Calculate new totals
       const { subtotal, tax, finalTotal } = calculateUpdatedTotals();
-      
+
       // Prepare update data
       const updateData = {
         items: updateOrderItems.map(item => {
@@ -521,10 +522,10 @@ const Orders = () => {
       };
 
       let response;
-      
+
       // Update order with real API
       response = await realApi.updateOrder(selectedOrder._id, updateData);
-      
+
       if (response.success) {
         // Update local state
         setOrders(prev =>
@@ -545,7 +546,7 @@ const Orders = () => {
         setShowUpdateModal(false);
         setSelectedOrder(null);
         setUpdateOrderItems([]);
-        
+
         // Print updated receipt with POS format
         printReceipt({
           ...selectedOrder,
@@ -557,7 +558,7 @@ const Orders = () => {
           totalAmount: subtotal,
           updatedAt: new Date().toISOString()
         }, true);
-        
+
         showNotification('Order updated successfully! New items added and receipt printed.');
       } else {
         throw new Error(response.message || 'Failed to update order');
@@ -570,13 +571,13 @@ const Orders = () => {
 
   const printReceipt = (order, isUpdated = false) => {
     const printWindow = window.open('', '_blank', 'width=300,height=600');
-    
+
     const now = new Date();
     const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
+
     const originalOrderDate = order.orderDate ? new Date(order.orderDate) : now;
     const originalFormattedDate = `${String(originalOrderDate.getDate()).padStart(2, '0')}/${String(originalOrderDate.getMonth() + 1).padStart(2, '0')}/${originalOrderDate.getFullYear()}  ${String(originalOrderDate.getHours()).padStart(2, '0')}:${String(originalOrderDate.getMinutes()).padStart(2, '0')}`;
-    
+
     const restaurantName = restaurantSettings?.restaurantName || 'Manma Africa Restaurant';
     const receiptNumber = order.orderNumber || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     const serverName = order.cashier?.name || 'System';
@@ -807,12 +808,12 @@ const Orders = () => {
                 <div class="item-price">Price:</div>
                 <div class="item-price">Total</div>
               </div>
-              ${Array.isArray(order.items) ? order.items.filter(item => 
-                !selectedOrder?.items?.some(originalItem => 
-                  originalItem._id === item._id || 
-                  (originalItem.product?.name === item.product?.name && originalItem.price === item.price)
-                )
-              ).map(item => `
+              ${Array.isArray(order.items) ? order.items.filter(item =>
+      !selectedOrder?.items?.some(originalItem =>
+        originalItem._id === item._id ||
+        (originalItem.product?.name === item.product?.name && originalItem.price === item.price)
+      )
+    ).map(item => `
                 <div class="item-row">
                   <div class="item-name">${item.product?.name || item.name || 'Item'}</div>
                   <div class="item-quantity">${item.quantity}</div>
@@ -877,11 +878,11 @@ const Orders = () => {
         </body>
       </html>
     `;
-    
+
     printWindow.document.write(receiptContent);
     printWindow.document.close();
     printWindow.focus();
-    
+
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
@@ -1327,7 +1328,7 @@ const Orders = () => {
           <div className="bg-white rounded-lg max-w-md w-full">
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Process Payment</h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1337,7 +1338,7 @@ const Orders = () => {
                     Customer: {paymentOrder.customer?.name || paymentOrder.customerName || 'Walk-in Customer'}
                   </label>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Total Amount
@@ -1630,14 +1631,21 @@ const OrderModal = ({ order, onClose, onPrint, onPayNow, onUpdateOrder, onUpdate
 
 // UPDATE ORDER MODAL COMPONENT
 const UpdateOrderModal = ({ order, orderItems, availableProducts, onClose, onAddItem, onRemoveItem, onUpdateQuantity, onSubmit }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const calculateTotals = () => {
     const subtotal = orderItems.reduce((sum, item) => sum + (item.total || item.price * item.quantity), 0);
     const taxRate = 0.05; // 5% tax to match POS
     const tax = subtotal * taxRate;
     const finalTotal = subtotal + tax;
-    
+
     return { subtotal, tax, finalTotal };
   };
+
+  const filteredProducts = availableProducts.filter(product =>
+    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (product.category && product.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   const totals = calculateTotals();
   const previousTotal = order.finalTotal || order.totalAmount || 0;
@@ -1741,7 +1749,26 @@ const UpdateOrderModal = ({ order, orderItems, availableProducts, onClose, onAdd
             {/* Right Column: Add Items */}
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-3">Add Items to Order</h3>
-              
+
+              {/* Search Input */}
+              <div className="mb-4">
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="Search products..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
               {/* Product Categories */}
               <div className="mb-4">
                 <div className="flex space-x-2 overflow-x-auto pb-2">
@@ -1762,7 +1789,7 @@ const UpdateOrderModal = ({ order, orderItems, availableProducts, onClose, onAdd
 
               {/* Product Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 max-h-60 overflow-y-auto p-2 border rounded">
-                {availableProducts.map((product) => (
+                {filteredProducts.map((product) => (
                   <button
                     key={product._id}
                     onClick={() => onAddItem(product)}
@@ -1811,8 +1838,8 @@ const UpdateOrderModal = ({ order, orderItems, availableProducts, onClose, onAdd
 
 // KITCHEN ORDERS MODAL COMPONENT
 const KitchenOrdersModal = ({ orders, statusFilter, onStatusFilterChange, onClose, onUpdateStatus, getTimeElapsed }) => {
-  const filteredOrders = statusFilter === 'all' 
-    ? orders 
+  const filteredOrders = statusFilter === 'all'
+    ? orders
     : orders.filter(order => order.kitchenStatus === statusFilter);
 
   const getKitchenStatusColor = (kitchenStatus) => {
