@@ -116,7 +116,7 @@ const POS = () => {
   // FIXED: Proper image URL handling
   const getProductImageUrl = (product) => {
     if (!product.image) {
-      return 'https://via.placeholder.com/150x150?text=No+Image';
+      return '/no-image.png'; // Use a local fallback
     }
 
     // If it's already a full URL (starts with http), use it directly
@@ -660,8 +660,10 @@ const POS = () => {
                   alt={product.name}
                   className="h-full w-full object-cover rounded"
                   onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/150x150?text=Image+Error';
                     e.target.onerror = null;
+                    e.target.style.display = 'none';
+                    e.target.parentNode.classList.add('bg-gray-200');
+                    e.target.parentNode.innerHTML = '<span class="text-xs text-gray-400">No Image</span>';
                   }}
                 />
               </div>

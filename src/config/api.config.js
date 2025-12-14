@@ -35,29 +35,27 @@ const getApiUrl = () => {
     }
   }
 
-  // If VITE_API_URL is explicitly set (e.g. in .env), respect it, BUT check if it points to prod while validly local
-  // Ideally, we trust the .env, but if the user has a stale .env pointing to prod, it causes issues.
-  if (import.meta.env.VITE_API_URL) {
-    const envUrl = import.meta.env.VITE_API_URL;
-    // Check if this is a production URL being used in a non-production environment
-    if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      const isProdDomain = hostname.includes('onrender.com') || hostname.includes('vercel.app');
+  // Force local API if running locally, ignoring .env if it points to production
+  if (isLocal) {
+    if (import.meta.env.VITE_API_URL) {
+      const envUrl = import.meta.env.VITE_API_URL;
       const isProdUrl = envUrl.includes('onrender.com') || envUrl.includes('vercel.app');
 
-      if (isProdUrl && !isProdDomain) {
-        console.warn('⚠️ Ignoring production VITE_API_URL in local environment:', envUrl);
-        // Fall through to default local behavior (return /api/v1)
-      } else {
-        return envUrl;
+      if (isProdUrl) {
+        console.warn('⚠️ Ignoring production VITE_API_URL in local environment to ensure persistence. Using local server.');
+        return 'http://localhost:5000/api/v1';
       }
-    } else {
-      return envUrl;
     }
+    // If no .env or .env is local, use default local
+    return 'http://localhost:5000/api/v1';
   }
 
-  // Default to relative path /api/v1 for ALL other cases (localhost, local IP, custom local domain)
-  // This allows the proxy to handle the request to localhost:5000
+  // If VITE_API_URL is explicitly set (e.g. in .env), respect it for non-local builds
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // Default to relative path /api/v1 for ALL other cases
   return '/api/v1';
 };
 
@@ -75,9 +73,13 @@ const getBackendUrl = () => {
     }
   }
 
-  // Environment variable next
+  // Environment variable next - but safeguard against prod URL in local dev
   if (import.meta.env.VITE_BACKEND_URL) {
-    return import.meta.env.VITE_BACKEND_URL;
+    if (isLocal && (import.meta.env.VITE_BACKEND_URL.includes('onrender.com') || import.meta.env.VITE_BACKEND_URL.includes('vercel.app'))) {
+      console.warn('⚠️ Ignoring production VITE_BACKEND_URL in local environment to ensure persistence. Using local server.');
+    } else {
+      return import.meta.env.VITE_BACKEND_URL;
+    }
   }
 
   // Default to local server on port 5000 for all other cases

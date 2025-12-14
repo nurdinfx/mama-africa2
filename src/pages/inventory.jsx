@@ -280,7 +280,11 @@ const Inventory = () => {
                   alt={product.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/200x200?text=Image+Error';
+                    e.target.onerror = null; // Prevent infinite loop
+                    e.target.src = '/placeholder-image.png'; // Assuming exists or handled by vite, otherwise use a base64 or just styling
+                    e.target.style.display = 'none'; // Hide broken image
+                    e.target.parentNode.classList.add('bg-gray-200', 'flex', 'items-center', 'justify-center');
+                    e.target.parentNode.innerHTML = '<span class="text-gray-400 text-sm">No Image</span>';
                   }}
                 />
               </div>
@@ -581,7 +585,9 @@ const ProductModal = ({
                     alt="Preview"
                     className="w-16 h-16 object-cover rounded border"
                     onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/64x64?text=Image+Error';
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                      // Optionally show text adjacent
                     }}
                   />
                 )}
