@@ -19,6 +19,7 @@ import Users from './pages/users';
 import Tables from './pages/tables';
 import Purchase from './pages/purchase'; // FIXED: This file should be .jsx
 import Reports from './pages/reports';
+import CustomerDisplay from './pages/customer-display';
 import CashierHandoverReport from './pages/cashier-handover-report';
 
 function App() {
@@ -40,11 +41,7 @@ function App() {
 
                 <Route path="dashboard" element={<Dashboard />} />
 
-                <Route path="pos" element={
-                  <ProtectedRoute requiredRoles={['admin', 'manager', 'cashier', 'waiter']}>
-                    <POS />
-                  </ProtectedRoute>
-                } />
+                {/* POS Route moved out to be full screen */}
 
                 <Route path="kitchen" element={
                   <ProtectedRoute requiredRoles={['admin', 'chef']}>
@@ -119,6 +116,16 @@ function App() {
                   </ProtectedRoute>
                 } />
               </Route>
+
+              {/* Full Screen POS Route - Waiters need access too */}
+              <Route path="/pos" element={
+                <ProtectedRoute requiredRoles={['admin', 'manager', 'cashier', 'waiter']}>
+                  <POS />
+                </ProtectedRoute>
+              } />
+
+              {/* Customer Display Route (Second Screen) */}
+              <Route path="/customer-view" element={<CustomerDisplay />} />
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

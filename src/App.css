@@ -21,7 +21,7 @@ body {
 
 .page-shell {
   width: 100%;
-  max-width: var(--page-max);
+  max-width: 100%;
   margin: 0 auto;
   padding: 1rem;
 }

@@ -267,10 +267,23 @@ const Inventory = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.isArray(filteredProducts) && filteredProducts.map(product => {
           const stockStatus = getStockStatus(product.stock, product.minStock);
+          // Fix for image 404s: If running locally but image has production URL, rewrite it to local backend
           const backendUrl = API_CONFIG.BACKEND_URL;
-          const imageUrl = product.image
-            ? (product.image.startsWith('http') ? product.image : `${backendUrl}${product.image}`)
-            : 'https://via.placeholder.com/200x200?text=No+Image';
+          let imageUrl = product.image ? product.image : '';
+
+          if (imageUrl) {
+            if (imageUrl.startsWith('http')) {
+              // If it's a full URL, check if we need to rewrite it for local dev
+              if (window.location.hostname === 'localhost' && imageUrl.includes('mama-africa1.onrender.com')) {
+                imageUrl = imageUrl.replace('https://mama-africa1.onrender.com', 'http://localhost:5000');
+              }
+            } else {
+              // Relative path, prepend backend URL
+              imageUrl = `${backendUrl}${imageUrl}`;
+            }
+          } else {
+            imageUrl = 'https://via.placeholder.com/200x200?text=No+Image';
+          }
 
           return (
             <div key={product._id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
@@ -281,9 +294,10 @@ const Inventory = () => {
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.onerror = null; // Prevent infinite loop
-                    e.target.src = '/placeholder-image.png'; // Assuming exists or handled by vite, otherwise use a base64 or just styling
-                    e.target.style.display = 'none'; // Hide broken image
-                    e.target.parentNode.classList.add('bg-gray-200', 'flex', 'items-center', 'justify-center');
+                    e.target.src = '/placeholder.svg'; // Fallback image
+                    if (e.target.parentNode) {
+                      e.target.parentNode.classList.add('bg-gray-200', 'flex', 'items-center', 'justify-center');
+                    }
                     e.target.parentNode.innerHTML = '<span class="text-gray-400 text-sm">No Image</span>';
                   }}
                 />
@@ -581,7 +595,16 @@ const ProductModal = ({
               <div className="flex items-center space-x-4">
                 {formData.image && (
                   <img
-                    src={formData.image.startsWith('http') ? formData.image : `${API_CONFIG.BACKEND_URL}${formData.image}`}
+                    src={(() => {
+                      if (!formData.image) return '';
+                      if (formData.image.startsWith('http')) {
+                        if (window.location.hostname === 'localhost' && formData.image.includes('mama-africa1.onrender.com')) {
+                          return formData.image.replace('https://mama-africa1.onrender.com', 'http://localhost:5000');
+                        }
+                        return formData.image;
+                      }
+                      return `${API_CONFIG.BACKEND_URL}${formData.image}`;
+                    })()}
                     alt="Preview"
                     className="w-16 h-16 object-cover rounded border"
                     onError={(e) => {

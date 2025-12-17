@@ -50,7 +50,7 @@ const Purchase = () => {
     try {
       setLoading(true);
       setBackendStatus('loading');
-      
+
       console.log('📊 Loading purchase stats from backend (purchases, suppliers, purchase-orders)...');
 
       // Use existing backend endpoints (no /purchases/dashboard-stats in backend)
@@ -98,7 +98,7 @@ const Purchase = () => {
     } catch (error) {
       console.error('❌ Error loading purchase stats:', error);
       setBackendStatus('error');
-      
+
       // Set default stats when backend fails
       setPurchaseStats({
         totalPurchases: 0,
@@ -178,7 +178,7 @@ const Purchase = () => {
 
   const renderActiveComponent = () => {
     if (!ActiveComponent) return null;
-    
+
     try {
       return React.createElement(ActiveComponent, {
         key: activeView
@@ -254,14 +254,14 @@ const Purchase = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 shadow-lg">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full max-w-full px-4">
           <h1 className="text-3xl font-bold">Purchase Management</h1>
         </div>
       </div>
 
       {/* Purchase Statistics */}
       <div className="p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full max-w-full px-4">
           {backendStatus === 'error' && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center gap-3">
@@ -365,17 +365,16 @@ const Purchase = () => {
                 <div className="text-sm text-gray-500">
                   Real Time: {currentTime.toLocaleTimeString()}
                 </div>
-                <div className={`px-2 py-1 rounded text-xs ${
-                  backendStatus === 'connected' ? 'bg-green-100 text-green-800' : 
-                  backendStatus === 'loading' ? 'bg-yellow-100 text-yellow-800' : 
-                  'bg-red-100 text-red-800'
-                }`}>
-                  {backendStatus === 'connected' ? 'Connected' : 
-                   backendStatus === 'loading' ? 'Loading' : 'Error'}
+                <div className={`px-2 py-1 rounded text-xs ${backendStatus === 'connected' ? 'bg-green-100 text-green-800' :
+                    backendStatus === 'loading' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                  }`}>
+                  {backendStatus === 'connected' ? 'Connected' :
+                    backendStatus === 'loading' ? 'Loading' : 'Error'}
                 </div>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-white rounded-lg shadow-sm">
                 <div className="text-2xl font-bold text-blue-600">{purchaseModules.length}</div>
@@ -390,7 +389,7 @@ const Purchase = () => {
                 <div className="text-sm text-gray-600">Live Backend</div>
               </div>
             </div>
-            
+
             <div className="mt-6 pt-6 border-t border-blue-200 text-sm text-gray-500">
               <div className="flex justify-between items-center">
                 <div>

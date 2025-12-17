@@ -6,7 +6,7 @@ import { realApi } from '../api/realApi';
 import { getCache, setCache } from '../services/offlineCache';
 import { formatTime } from '../utils/date';
 
-const Kitchen = () => {
+const Kitchen = ({ isPosMode = false }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,15 +17,16 @@ const Kitchen = () => {
   const { socket, emit, isConnected } = useSocket();
 
   useEffect(() => {
+    // ... (existing useEffect logic)
     const cached = getCache('kitchen-orders', []);
     if (Array.isArray(cached) && cached.length > 0) {
       setOrders(cached);
     }
     loadKitchenOrders();
-    
+
     // Set up auto-refresh every 15 seconds
     const interval = setInterval(loadKitchenOrders, 15000);
-    
+
     // Listen for real-time updates
     if (socket && isConnected) {
       const branchId = user?.branch?._id;
@@ -41,7 +42,7 @@ const Kitchen = () => {
           return exists ? prev.map(o => o._id === newOrder._id ? newOrder : o) : [newOrder, ...prev];
         });
       });
-      
+
       socket.on('order-status-updated', (updatedOrder) => {
         if (!updatedOrder || (branchId && String(updatedOrder.branch) !== String(branchId))) return;
         setOrders(prev => prev.map(o => o._id === updatedOrder._id ? updatedOrder : o));
@@ -63,15 +64,25 @@ const Kitchen = () => {
     };
   }, [socket, isConnected, soundEnabled]);
 
+  // ... (keep helper functions like playSound, etc. - I'm using the existing ones implicitly by not replacing them if I use replacement correctly, but since I am replacing the top part, I need to look out)
+  // Wait, I am replacing lines 9 to 250! I must include all the helper functions I am replacing!
+  // This approach is risky if I don't paste the helpers.
+  // I will check lines 66-198. They are helpers.
+  // I should only replace the 'return' block OR just the component definition line and the return block.
+  // Splitting into two edits is better.
+  // Edit 1: Component definition.
+  // Edit 2: Return block.
+
+
   const playSound = (type) => {
     try {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
-      
+
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
-      
+
       if (type === 'new-order') {
         oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
         oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
@@ -80,10 +91,10 @@ const Kitchen = () => {
         oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
         oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.2);
       }
-      
+
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-      
+
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.5);
     } catch (error) {
@@ -96,7 +107,7 @@ const Kitchen = () => {
       setLoading(true);
       setError('');
       console.log('🔄 Loading kitchen orders from backend...');
-      
+
       const response = await realApi.getKitchenOrders({
         kitchenStatus: 'all',
         limit: 100
@@ -106,9 +117,9 @@ const Kitchen = () => {
 
       if (response.success) {
         const ordersData = realApi.extractData(response) || [];
-        const ordersArray = Array.isArray(ordersData) ? ordersData : 
-                           (ordersData.orders && Array.isArray(ordersData.orders) ? ordersData.orders : []);
-        
+        const ordersArray = Array.isArray(ordersData) ? ordersData :
+          (ordersData.orders && Array.isArray(ordersData.orders) ? ordersData.orders : []);
+
         console.log('✅ Kitchen orders loaded:', ordersArray.length);
         setOrders(ordersArray);
         setCache('kitchen-orders', ordersArray);
@@ -128,7 +139,7 @@ const Kitchen = () => {
     try {
       const payload = { status: newStatus, kitchenStatus: newStatus };
       const response = await realApi.updateOrderStatus(orderId, payload);
-      
+
       if (response.success) {
         const updated = response.data || { _id: orderId, status: newStatus, kitchenStatus: newStatus };
         setOrders(prev =>
@@ -136,11 +147,11 @@ const Kitchen = () => {
             order._id === orderId ? { ...order, status: updated.status, kitchenStatus: updated.kitchenStatus, updatedAt: updated.updatedAt || new Date().toISOString() } : order
           )
         );
-        
+
         if (isConnected && emit) {
           emit('order-status-updated', updated);
         }
-        
+
         if (newStatus === 'ready' && soundEnabled) {
           playSound('order-ready');
         }
@@ -158,7 +169,7 @@ const Kitchen = () => {
       const diff = Date.now() - new Date(createdAt).getTime();
       const minutes = Math.floor(diff / 60000);
       const hours = Math.floor(minutes / 60);
-      
+
       if (hours > 0) {
         return `${hours}h ${minutes % 60}m`;
       }
@@ -171,7 +182,7 @@ const Kitchen = () => {
   const getUrgencyColor = (createdAt) => {
     const diff = Date.now() - new Date(createdAt).getTime();
     const minutes = Math.floor(diff / 60000);
-    
+
     if (minutes > 30) return 'border-red-500 bg-red-50';
     if (minutes > 15) return 'border-orange-500 bg-orange-50';
     return 'border-gray-300';
@@ -184,105 +195,105 @@ const Kitchen = () => {
   };
 
   // Group orders by status
-  const pendingOrders = Array.isArray(orders) ? orders.filter(order => order.status === 'pending' || order.status === 'confirmed') : [];
-  const preparingOrders = Array.isArray(orders) ? orders.filter(order => order.status === 'preparing') : [];
-  const readyOrders = Array.isArray(orders) ? orders.filter(order => order.status === 'ready') : [];
+  const pendingOrders = Array.isArray(orders) ? orders.filter(order => ['pending', 'confirmed', 'delayed'].includes(order.kitchenStatus || order.status)) : [];
+  const preparingOrders = Array.isArray(orders) ? orders.filter(order => (order.kitchenStatus || order.status) === 'preparing') : [];
+  const readyOrders = Array.isArray(orders) ? orders.filter(order => (order.kitchenStatus || order.status) === 'ready') : [];
 
   // Filter by station
-  const filteredPendingOrders = selectedStation === 'all' ? pendingOrders : 
+  const filteredPendingOrders = selectedStation === 'all' ? pendingOrders :
     pendingOrders.filter(order => !order.station || order.station === selectedStation);
-  const filteredPreparingOrders = selectedStation === 'all' ? preparingOrders : 
+  const filteredPreparingOrders = selectedStation === 'all' ? preparingOrders :
     preparingOrders.filter(order => !order.station || order.station === selectedStation);
 
-  
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-900">
-      {/* Header */}
-      <div className="bg-white shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">KITCHEN DISPLAY</h1>
-                <p className="text-gray-600 text-sm">Real-time Order Management System</p>
+    <div className={isPosMode ? "h-full bg-slate-100 overflow-y-auto p-4" : "min-h-screen bg-slate-900 text-slate-800"}>
+      {/* Header - Only show if NOT in POS mode */}
+      {!isPosMode && (
+        <div className="bg-white shadow-lg border-b border-slate-200">
+          <div className="w-full max-w-full px-4 py-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-6">
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-800">KITCHEN DISPLAY</h1>
+                  <p className="text-slate-500 text-sm">Real-time Order Management System</p>
+                </div>
+
+                {/* Station Filter */}
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm font-medium text-slate-700">Station:</span>
+                  <select
+                    value={selectedStation}
+                    onChange={(e) => setSelectedStation(e.target.value)}
+                    className="border border-slate-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="all">All Stations</option>
+                    <option value="grill">Grill Station</option>
+                    <option value="fry">Fry Station</option>
+                    <option value="salad">Salad Station</option>
+                    <option value="pizza">Pizza Station</option>
+                    <option value="dessert">Dessert Station</option>
+                  </select>
+                </div>
               </div>
-              
-              {/* Station Filter */}
-              <div className="flex items-center space-x-3">
-                <span className="text-sm font-medium text-gray-700">Station:</span>
-                <select 
-                  value={selectedStation}
-                  onChange={(e) => setSelectedStation(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+
+              <div className="flex items-center space-x-6">
+                {/* Sound Toggle */}
+                <button
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className={`flex items-center space-x-2 px-3 py-1 rounded-lg text-sm ${soundEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                    }`}
                 >
-                  <option value="all">All Stations</option>
-                  <option value="grill">Grill Station</option>
-                  <option value="fry">Fry Station</option>
-                  <option value="salad">Salad Station</option>
-                  <option value="pizza">Pizza Station</option>
-                  <option value="dessert">Dessert Station</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-6">
-              {/* Sound Toggle */}
-              <button
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`flex items-center space-x-2 px-3 py-1 rounded-lg text-sm ${
-                  soundEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                <span>{soundEnabled ? '🔊' : '🔇'}</span>
-                <span>Sound {soundEnabled ? 'On' : 'Off'}</span>
-              </button>
-              
-              <div className="text-right">
-                <p className="text-lg font-semibold text-gray-900">Chef: {user?.name || 'Kitchen Staff'}</p>
-                <p className="text-gray-600 text-sm">{formatTime(new Date().toISOString())}</p>
+                  <span>{soundEnabled ? '🔊' : '🔇'}</span>
+                  <span>Sound {soundEnabled ? 'On' : 'Off'}</span>
+                </button>
+
+                <div className="text-right">
+                  <p className="text-lg font-semibold text-slate-800">Chef: {user?.name || 'Kitchen Staff'}</p>
+                  <p className="text-slate-500 text-sm">{formatTime(new Date().toISOString())}</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className={isPosMode ? "" : "w-full max-w-full p-4"}>
         {/* Stats Overview */}
         <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{pendingOrders.length}</div>
-            <div className="text-sm text-gray-600">New Orders</div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
+            <div className="text-3xl font-black text-blue-600">{pendingOrders.length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Pending</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600">{preparingOrders.length}</div>
-            <div className="text-sm text-gray-600">In Progress</div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
+            <div className="text-3xl font-black text-orange-600">{preparingOrders.length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cooking</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{readyOrders.length}</div>
-            <div className="text-sm text-gray-600">Ready</div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
+            <div className="text-3xl font-black text-emerald-600">{readyOrders.length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Ready</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-center">
-            <div className="text-2xl font-bold text-gray-600">{orders.length}</div>
-            <div className="text-sm text-gray-600">Total Active</div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
+            <div className="text-3xl font-black text-slate-600">{orders.length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</div>
           </div>
         </div>
 
         {/* Orders Grid */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* New Orders Column */}
           <div className="space-y-4">
-            <div className="bg-white rounded-lg shadow-sm border border-blue-200">
-              <div className="bg-blue-600 text-white px-4 py-3 rounded-t-lg">
-                <h2 className="text-xl font-bold flex items-center justify-between">
+            <div className="bg-white rounded-xl shadow-md border-t-4 border-blue-500 overflow-hidden">
+              <div className="bg-blue-50 px-4 py-3 border-b border-blue-100">
+                <h2 className="text-lg font-black text-blue-800 flex items-center justify-between">
                   <span>NEW ORDERS</span>
-                  <span className="bg-blue-800 px-3 py-1 rounded-full text-sm">
+                  <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full text-xs">
                     {filteredPendingOrders.length}
                   </span>
                 </h2>
               </div>
-              <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto bg-slate-50/50">
                 {filteredPendingOrders.map(order => (
                   <OrderCard
                     key={order._id}
@@ -292,36 +303,32 @@ const Kitchen = () => {
                     getUrgencyColor={getUrgencyColor}
                     getCookingTime={getCookingTime}
                     nextStatus="preparing"
-                    buttonText="START COOKING"
-                    buttonColor="bg-orange-500 hover:bg-orange-600"
-                    status="new"
+                    buttonText="START"
+                    buttonColor="bg-blue-600 hover:bg-blue-700"
+                    status={order.kitchenStatus || order.status}
                   />
                 ))}
-                
                 {filteredPendingOrders.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="text-4xl mb-2">📋</div>
-                    <p className="text-lg font-medium">No New Orders</p>
-                    <p className="text-sm">New orders will appear here automatically</p>
+                  <div className="text-center py-10 text-slate-400">
+                    <p>No new orders</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* In Progress & Ready Columns */}
+          {/* In Progress Column */}
           <div className="space-y-4">
-            {/* In Progress */}
-            <div className="bg-white rounded-lg shadow-sm border border-orange-200">
-              <div className="bg-orange-600 text-white px-4 py-3 rounded-t-lg">
-                <h2 className="text-xl font-bold flex items-center justify-between">
-                  <span>IN PROGRESS</span>
-                  <span className="bg-orange-800 px-3 py-1 rounded-full text-sm">
+            <div className="bg-white rounded-xl shadow-md border-t-4 border-orange-500 overflow-hidden">
+              <div className="bg-orange-50 px-4 py-3 border-b border-orange-100">
+                <h2 className="text-lg font-black text-orange-800 flex items-center justify-between">
+                  <span>COOKING</span>
+                  <span className="bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full text-xs">
                     {filteredPreparingOrders.length}
                   </span>
                 </h2>
               </div>
-              <div className="p-4 space-y-3 max-h-[35vh] overflow-y-auto">
+              <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto bg-slate-50/50">
                 {filteredPreparingOrders.map(order => (
                   <OrderCard
                     key={order._id}
@@ -331,31 +338,32 @@ const Kitchen = () => {
                     getUrgencyColor={getUrgencyColor}
                     getCookingTime={getCookingTime}
                     nextStatus="ready"
-                    buttonText="MARK READY"
-                    buttonColor="bg-green-500 hover:bg-green-600"
+                    buttonText="READY"
+                    buttonColor="bg-emerald-600 hover:bg-emerald-700"
                     status="preparing"
                   />
                 ))}
-                
                 {filteredPreparingOrders.length === 0 && (
-                  <div className="text-center py-4 text-gray-500">
-                    <p className="text-sm">No orders in progress</p>
+                  <div className="text-center py-10 text-slate-400">
+                    <p>Nothing cooking</p>
                   </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Ready for Pickup */}
-            <div className="bg-white rounded-lg shadow-sm border border-green-200">
-              <div className="bg-green-600 text-white px-4 py-3 rounded-t-lg">
-                <h2 className="text-xl font-bold flex items-center justify-between">
-                  <span>READY FOR PICKUP</span>
-                  <span className="bg-green-800 px-3 py-1 rounded-full text-sm">
+          {/* Ready Column */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow-md border-t-4 border-emerald-500 overflow-hidden">
+              <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-100">
+                <h2 className="text-lg font-black text-emerald-800 flex items-center justify-between">
+                  <span>READY</span>
+                  <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full text-xs">
                     {readyOrders.length}
                   </span>
                 </h2>
               </div>
-              <div className="p-4 space-y-3 max-h-[35vh] overflow-y-auto">
+              <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto bg-slate-50/50">
                 {readyOrders.map(order => (
                   <OrderCard
                     key={order._id}
@@ -368,15 +376,15 @@ const Kitchen = () => {
                     status="ready"
                   />
                 ))}
-                
                 {readyOrders.length === 0 && (
-                  <div className="text-center py-4 text-gray-500">
-                    <p className="text-sm">No orders ready</p>
+                  <div className="text-center py-10 text-slate-400">
+                    <p>No orders ready</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -384,129 +392,117 @@ const Kitchen = () => {
 };
 
 // Professional Order Card Component
-const OrderCard = ({ 
-  order, 
-  onStatusUpdate, 
-  getTimeElapsed, 
-  getUrgencyColor, 
+const OrderCard = ({
+  order,
+  onStatusUpdate,
+  getTimeElapsed,
+  getUrgencyColor,
   getCookingTime,
   nextStatus,
   buttonText,
   buttonColor,
   showReady = false,
-  status 
+  status
 }) => {
-  const [flashing, setFlashing] = useState(status === 'new');
+  const [flashing, setFlashing] = useState(status === 'pending' || status === 'new');
+
+  // Calculate Prep Time
+  const prepTimeMin = 5 + (order.items?.length || 0) * 2;
+  const prepTimeMax = prepTimeMin + 5;
 
   useEffect(() => {
-    if (status === 'new') {
-      const timer = setTimeout(() => setFlashing(false), 5000);
+    if (status === 'pending') {
+      const timer = setTimeout(() => setFlashing(false), 10000); // Flash for 10s
       return () => clearTimeout(timer);
     }
   }, [status]);
 
   return (
-    <div className={`bg-white rounded-lg border-2 p-4 transition-all duration-300 ${
-      flashing ? 'animate-pulse border-blue-400 bg-blue-50' : getUrgencyColor(order.createdAt)
-    }`}>
-      {/* Order Header */}
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center space-x-3">
-          <div className="bg-gray-900 text-white px-3 py-1 rounded-lg">
-            <span className="font-mono font-bold text-sm">#{order.orderNumber || order._id?.slice(-6).toUpperCase()}</span>
+    <div className={`bg-white rounded-lg border shadow-sm transition-all duration-300 flex flex-col ${status === 'delayed' ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200' :
+      flashing ? 'animate-pulse ring-2 ring-blue-400' : 'border-slate-200 hover:shadow-md'
+      }`}>
+
+      {/* 1. Header: Table, Timer */}
+      <div className="p-3 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 rounded-t-lg">
+        <div>
+          <div className="flex items-center space-x-2 mb-1">
+            <span className="text-xs font-bold text-slate-500">#{order.orderNumber?.slice(-4) || '----'}</span>
+            {order.tableNumber && <span className="px-2 py-0.5 bg-slate-800 text-white text-xs font-bold rounded">TBL {order.tableNumber}</span>}
+            {!order.tableNumber && <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-xs font-bold rounded">WALK-IN</span>}
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-500">Order Time</span>
-            <span className="text-sm font-semibold">{getTimeElapsed(order.createdAt)}</span>
+          <div className="text-[10px] text-slate-400 font-medium">
+            {formatTime(order.createdAt)} ({getTimeElapsed(order.createdAt)})
           </div>
         </div>
-        
         <div className="text-right">
-          <div className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-            order.orderType === 'dine-in' ? 'bg-purple-100 text-purple-800' :
-            order.orderType === 'takeaway' ? 'bg-orange-100 text-orange-800' :
-            'bg-teal-100 text-teal-800'
-          }`}>
-            {order.orderType?.toUpperCase() || 'DINE-IN'}
-          </div>
-          {order.tableNumber && (
-            <div className="mt-1 bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">
-              TABLE {order.tableNumber}
-            </div>
-          )}
+          <div className="text-xs font-bold text-slate-500 mb-1">⏱️ Prep: {prepTimeMin}-{prepTimeMax}m</div>
+          {status === 'delayed' && <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded animate-pulse">DELAYED</span>}
         </div>
       </div>
-      
-      {/* Customer Info */}
-      <div className="mb-3 p-2 bg-gray-50 rounded">
-        <p className="text-sm font-medium">
-          👤 {order.customer?.name || order.customerName || 'Walk-in Customer'}
-        </p>
-        {order.customer?.phone && (
-          <p className="text-xs text-gray-600 mt-1">📞 {order.customer.phone}</p>
-        )}
-      </div>
-      
-      {/* Order Items */}
-      <div className="space-y-2 mb-4">
+
+      {/* 2. Items List */}
+      <div className="p-3 space-y-2 flex-1">
         {Array.isArray(order.items) && order.items.map((item, index) => (
-          <div key={index} className="flex justify-between items-start py-1 border-b border-gray-100 last:border-b-0">
+          <div key={index} className="flex items-start text-sm">
+            <span className="font-bold text-slate-700 w-6 text-right mr-2">{item.quantity}x</span>
             <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="font-bold text-gray-900 w-6 text-center bg-gray-200 rounded">
-                  {item.quantity}
-                </span>
-                <span className="font-medium text-sm flex-1">
-                  {item.product?.name || item.name || `Item ${index + 1}`}
-                </span>
-              </div>
-              {item.notes && (
-                <div className="ml-8 mt-1">
-                  <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Note: {item.notes}</span>
+              <div className="font-bold text-slate-800 leading-tight">{item.product?.name || item.name}</div>
+              {/* Modifiers */}
+              {(item.modifiers || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {item.modifiers.map((mod, i) => (
+                    <span key={i} className="text-[10px] bg-red-100 text-red-700 px-1 rounded font-bold uppercase tracking-wider">{mod}</span>
+                  ))}
                 </div>
               )}
-              {item.modifiers && item.modifiers.length > 0 && (
-                <div className="ml-8 mt-1">
-                  {item.modifiers.map((modifier, modIndex) => (
-                    <span key={modIndex} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded mr-1">
-                      {modifier}
-                    </span>
-                  ))}
+              {/* Notes */}
+              {item.notes && (
+                <div className="mt-1 text-xs text-orange-600 italic bg-orange-50 p-1 rounded border border-orange-100">
+                  "{item.notes}"
                 </div>
               )}
             </div>
           </div>
         ))}
-        
-        {(!order.items || !Array.isArray(order.items) || order.items.length === 0) && (
-          <p className="text-gray-400 text-sm text-center py-2">No items in this order</p>
-        )}
       </div>
-      
-      {/* Cooking Time & Actions */}
-      <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-        {status === 'preparing' && (
-          <div className="text-sm font-medium text-orange-600">
-            ⏱️ Cooking: {getCookingTime(order.updatedAt || order.createdAt)}
-          </div>
-        )}
-        
+
+      {/* 3. Actions */}
+      <div className="p-2 border-t border-slate-100 bg-slate-50 rounded-b-lg grid grid-cols-2 gap-2">
         {!showReady && (
-          <button
-            onClick={() => onStatusUpdate(order._id, nextStatus)}
-            className={`${buttonColor} text-white py-2 px-4 rounded-lg font-bold text-sm transition-all hover:scale-105 active:scale-95`}
-          >
-            {buttonText}
-          </button>
+          <>
+            {status === 'delayed' ? (
+              <button
+                onClick={() => onStatusUpdate(order._id, 'preparing')}
+                className="col-span-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-bold text-xs"
+              >
+                RESUME
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => onStatusUpdate(order._id, 'delayed')}
+                  className="bg-amber-100 hover:bg-amber-200 text-amber-700 py-2 rounded font-bold text-xs border border-amber-200"
+                >
+                  DELAY
+                </button>
+                <button
+                  onClick={() => onStatusUpdate(order._id, nextStatus)}
+                  className={`${buttonColor} text-white py-2 rounded font-bold text-xs shadow-sm`}
+                >
+                  {buttonText}
+                </button>
+              </>
+            )}
+          </>
         )}
-        
+
         {showReady && (
-          <div className="flex-1 text-center">
-            <div className="bg-green-500 text-white py-2 px-4 rounded-lg font-bold animate-pulse">
-              ✅ READY FOR SERVING
-            </div>
-            <p className="text-xs text-gray-600 mt-1">Waiting for pickup</p>
-          </div>
+          <button
+            onClick={() => onStatusUpdate(order._id, 'served')} // or completed
+            className="col-span-2 bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded font-bold text-xs"
+          >
+            MARK SERVED
+          </button>
         )}
       </div>
     </div>

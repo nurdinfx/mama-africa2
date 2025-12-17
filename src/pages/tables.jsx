@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
 
-const Tables = () => {
+const Tables = ({ isPosMode = false }) => {
   const [tables, setTables] = useState([]);
   const [filteredTables, setFilteredTables] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +19,7 @@ const Tables = () => {
   const [error, setError] = useState('');
 
   const { user } = useAuth();
+  // ... (keep logic)
 
   useEffect(() => {
     loadTables();
@@ -33,10 +34,10 @@ const Tables = () => {
       setLoading(true);
       setError('');
       console.log('🔄 Loading tables from backend...');
-      
+
       const response = await realApi.getTables();
       console.log('📦 Backend response:', response);
-      
+
       if (response.success) {
         const tablesData = realApi.extractData(response) || [];
         console.log('✅ Tables loaded from backend:', tablesData);
@@ -78,9 +79,9 @@ const Tables = () => {
   const handleSaveTable = async (tableData) => {
     try {
       console.log('💾 Saving table:', tableData);
-      
+
       let response;
-      
+
       if (editingTable) {
         response = await realApi.updateTable(editingTable._id, tableData);
       } else {
@@ -91,8 +92,8 @@ const Tables = () => {
         // Instead of reloading, add the new table to local state immediately
         if (editingTable) {
           // Update existing table in local state
-          setTables(prev => prev.map(t => 
-            t._id === editingTable._id 
+          setTables(prev => prev.map(t =>
+            t._id === editingTable._id
               ? { ...t, ...tableData, updatedAt: new Date().toISOString() }
               : t
           ));
@@ -112,7 +113,7 @@ const Tables = () => {
           };
           setTables(prev => [...prev, newTable]);
         }
-        
+
         setShowModal(false);
         setEditingTable(null);
         alert(`Table ${editingTable ? 'updated' : 'created'} successfully!`);
@@ -128,29 +129,29 @@ const Tables = () => {
   const handleUpdateStatus = async (statusData) => {
     try {
       console.log('🔄 Updating table status:', statusData);
-      
+
       const response = await realApi.updateTableStatus(selectedTable._id, statusData);
-      
+
       if (response.success) {
         // Update local state immediately
-        setTables(prev => prev.map(t => 
-          t._id === selectedTable._id 
-            ? { 
-                ...t, 
-                status: statusData.status,
-                updatedAt: new Date().toISOString(),
-                currentSession: statusData.status === 'occupied' ? {
-                  startedAt: new Date().toISOString(),
-                  customers: statusData.customers || 1,
-                  waiter: { 
-                    _id: user?._id || 'system',
-                    name: user?.name || 'System' 
-                  }
-                } : null
-              }
+        setTables(prev => prev.map(t =>
+          t._id === selectedTable._id
+            ? {
+              ...t,
+              status: statusData.status,
+              updatedAt: new Date().toISOString(),
+              currentSession: statusData.status === 'occupied' ? {
+                startedAt: new Date().toISOString(),
+                customers: statusData.customers || 1,
+                waiter: {
+                  _id: user?._id || 'system',
+                  name: user?.name || 'System'
+                }
+              } : null
+            }
             : t
         ));
-        
+
         setShowStatusModal(false);
         setSelectedTable(null);
         alert('Table status updated successfully!');
@@ -167,7 +168,7 @@ const Tables = () => {
     if (window.confirm('Are you sure you want to delete this table?')) {
       try {
         const response = await realApi.deleteTable(tableId);
-        
+
         if (response.success) {
           // Remove from local state immediately
           setTables(prev => prev.filter(t => t._id !== tableId));
@@ -182,6 +183,7 @@ const Tables = () => {
     }
   };
 
+  // ... (keep helpers)
   const getStatusColor = (status) => {
     const colors = {
       available: 'bg-green-100 text-green-800 border-green-200',
@@ -205,7 +207,7 @@ const Tables = () => {
 
   const getStatusStats = () => {
     const tablesArray = Array.isArray(tables) ? tables : [];
-    
+
     const stats = {
       total: tablesArray.length,
       available: tablesArray.filter(t => t.status === 'available').length,
@@ -214,7 +216,7 @@ const Tables = () => {
       cleaning: tablesArray.filter(t => t.status === 'cleaning').length,
       maintenance: tablesArray.filter(t => t.status === 'maintenance').length
     };
-    
+
     return stats;
   };
 
@@ -241,7 +243,7 @@ const Tables = () => {
       const diffMs = now - start;
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMins / 60);
-      
+
       if (diffHours > 0) {
         return `${diffHours}h ${diffMins % 60}m`;
       }
@@ -264,42 +266,44 @@ const Tables = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Table Management</h1>
-          <p className="text-gray-600">Manage restaurant tables and their status</p>
-          
-          {/* Status Info */}
-          <div className="mt-2 space-y-1">
-            {error && (
-              <div className="p-2 bg-red-100 text-red-700 rounded-md text-sm">
-                {error}
+      {!isPosMode && (
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Table Management</h1>
+            <p className="text-gray-600">Manage restaurant tables and their status</p>
+
+            {/* Status Info */}
+            <div className="mt-2 space-y-1">
+              {error && (
+                <div className="p-2 bg-red-100 text-red-700 rounded-md text-sm">
+                  {error}
+                </div>
+              )}
+              <div className="text-xs text-gray-500">
+                Total tables: {tables.length} | Connected to Backend
               </div>
-            )}
-            <div className="text-xs text-gray-500">
-              Total tables: {tables.length} | Connected to Backend
             </div>
           </div>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={loadTables}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium"
+            >
+              🔄 Refresh
+            </button>
+            <button
+              onClick={() => {
+                setEditingTable(null);
+                setShowModal(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+            >
+              + Add Table
+            </button>
+          </div>
         </div>
-        
-        <div className="flex space-x-3">
-          <button
-            onClick={loadTables}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium"
-          >
-            🔄 Refresh
-          </button>
-          <button
-            onClick={() => {
-              setEditingTable(null);
-              setShowModal(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-          >
-            + Add Table
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Table Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -400,13 +404,12 @@ const Tables = () => {
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center">
                 <div
-                  className={`w-3 h-3 rounded-full mr-2 ${
-                    table.status === 'available' ? 'bg-green-500' :
-                    table.status === 'occupied' ? 'bg-red-500' :
-                    table.status === 'reserved' ? 'bg-yellow-500' :
-                    table.status === 'cleaning' ? 'bg-blue-500' :
-                    'bg-gray-500'
-                  }`}
+                  className={`w-3 h-3 rounded-full mr-2 ${table.status === 'available' ? 'bg-green-500' :
+                      table.status === 'occupied' ? 'bg-red-500' :
+                        table.status === 'reserved' ? 'bg-yellow-500' :
+                          table.status === 'cleaning' ? 'bg-blue-500' :
+                            'bg-gray-500'
+                    }`}
                 ></div>
                 <span className="text-sm font-medium capitalize text-gray-600">
                   {table.status}
@@ -565,7 +568,7 @@ const TableModal = ({ table, onClose, onSave }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (!formData.tableNumber.trim()) {
       alert('Please enter a table number');
       return;
@@ -584,9 +587,9 @@ const TableModal = ({ table, onClose, onSave }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ 
-      ...prev, 
-      [name]: name === 'capacity' ? parseInt(value) || 1 : value 
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'capacity' ? parseInt(value) || 1 : value
     }));
   };
 
@@ -715,9 +718,9 @@ const StatusModal = ({ table, onClose, onSave }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setStatusData(prev => ({ 
-      ...prev, 
-      [name]: name === 'customers' ? parseInt(value) || 1 : value 
+    setStatusData(prev => ({
+      ...prev,
+      [name]: name === 'customers' ? parseInt(value) || 1 : value
     }));
   };
 
