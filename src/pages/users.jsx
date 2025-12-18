@@ -158,26 +158,30 @@ const Users = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Users</h1>
-          <p className="text-gray-600">All users loaded from the real server</p>
-          {error && (
-            <div className="mt-2 p-2 bg-red-100 text-red-700 rounded-md text-sm">
-              {error}
-            </div>
-          )}
+    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
+      {/* Header */}
+      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="heading-1 text-white mb-2">Users Management</h1>
+            <p className="text-blue-100">Manage system users and permissions</p>
+            {error && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => { setEditingUser(null); setShowModal(true); }}
+            className="bg-white text-blue-600 px-6 py-2.5 rounded-lg font-medium shadow-sm hover:bg-blue-50 transition-colors"
+          >
+            + Add User
+          </button>
         </div>
-        <button
-          onClick={() => { setEditingUser(null); setShowModal(true); }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-        >
-          + Add User
-        </button>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow">
+      {/* Filters */}
+      <div className="card">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
@@ -213,8 +217,10 @@ const Users = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
+      {/* Users Table */}
+      <div className="card p-0 overflow-hidden flex-1 flex flex-col min-h-0">
+        <div className="overflow-x-auto flex-1">
+          <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
@@ -276,6 +282,7 @@ const Users = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {showModal && (

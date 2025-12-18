@@ -994,32 +994,33 @@ const Orders = () => {
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header Section */}
-      <div className="bg-blue-600 text-white p-2 sm:p-4 shadow-lg">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Table Payment (Inv)</h1>
-            <div className="text-blue-100 text-xs sm:text-sm">
+    <div className="page-content flex flex-col gap-6 h-full overflow-hidden">
+      {/* Header */}
+      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="heading-1 text-white mb-2">Orders Management</h1>
+            <p className="text-blue-100">View and manage all orders</p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="text-sm text-blue-100">
               <span className="font-semibold">Pending: {pendingOrdersCount}</span>
             </div>
             <button
               onClick={handleShowKitchenOrders}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-medium"
+              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm"
             >
               Kitchen ({kitchenOrders.length})
             </button>
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
             <Link
               to="/pos"
-              className="flex-1 sm:flex-initial bg-white text-blue-600 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-50 text-center"
+              className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-50 shadow-sm transition-colors"
             >
               + New Order
             </Link>
             <button
               onClick={loadOrders}
-              className="flex-1 sm:flex-initial bg-white text-blue-600 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-50"
+              className="bg-white/20 text-white border border-white/30 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-white/30 transition-colors"
             >
               Refresh
             </button>
@@ -1027,23 +1028,23 @@ const Orders = () => {
         </div>
       </div>
 
-      <div className="p-2 sm:p-4">
+      <div className="flex-1 overflow-auto flex flex-col gap-4 min-h-0">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-4">
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
-            <h3 className="text-sm font-medium text-gray-600">VAT</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="card border-l-4 border-l-blue-500">
+            <h3 className="text-sm font-medium text-slate-600 mb-1">VAT</h3>
             <p className="text-2xl font-bold text-blue-600">
               ${summary.vat.toFixed(2)}
             </p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-red-500">
-            <h3 className="text-sm font-medium text-gray-600">Pending</h3>
+          <div className="card border-l-4 border-l-red-500">
+            <h3 className="text-sm font-medium text-slate-600 mb-1">Pending</h3>
             <p className="text-2xl font-bold text-red-600">
               ${summary.pending.toFixed(2)}
             </p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
-            <h3 className="text-sm font-medium text-gray-600">Total Amount</h3>
+          <div className="card border-l-4 border-l-green-500">
+            <h3 className="text-sm font-medium text-slate-600 mb-1">Total Amount</h3>
             <p className="text-2xl font-bold text-green-600">
               ${summary.totalAmount.toFixed(2)}
             </p>
@@ -1051,7 +1052,7 @@ const Orders = () => {
         </div>
 
         {/* Filters Section */}
-        <div className="bg-white rounded-lg shadow mb-4 p-2 sm:p-4">
+        <div className="card">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>

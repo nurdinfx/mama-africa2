@@ -207,187 +207,169 @@ const Kitchen = ({ isPosMode = false }) => {
 
 
   return (
-    <div className={isPosMode ? "h-full bg-slate-100 overflow-y-auto p-4" : "min-h-screen bg-slate-900 text-slate-800"}>
-      {/* Header - Only show if NOT in POS mode */}
+    <div className="page-content flex flex-col gap-6">
+      {/* Header Toolbar */}
       {!isPosMode && (
-        <div className="bg-white shadow-lg border-b border-slate-200">
-          <div className="w-full max-w-full px-4 py-4">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-6">
-                <div>
-                  <h1 className="text-3xl font-bold text-slate-800">KITCHEN DISPLAY</h1>
-                  <p className="text-slate-500 text-sm">Real-time Order Management System</p>
-                </div>
-
-                {/* Station Filter */}
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm font-medium text-slate-700">Station:</span>
-                  <select
-                    value={selectedStation}
-                    onChange={(e) => setSelectedStation(e.target.value)}
-                    className="border border-slate-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  >
-                    <option value="all">All Stations</option>
-                    <option value="grill">Grill Station</option>
-                    <option value="fry">Fry Station</option>
-                    <option value="salad">Salad Station</option>
-                    <option value="pizza">Pizza Station</option>
-                    <option value="dessert">Dessert Station</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-6">
-                {/* Sound Toggle */}
-                <button
-                  onClick={() => setSoundEnabled(!soundEnabled)}
-                  className={`flex items-center space-x-2 px-3 py-1 rounded-lg text-sm ${soundEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                    }`}
-                >
-                  <span>{soundEnabled ? '🔊' : '🔇'}</span>
-                  <span>Sound {soundEnabled ? 'On' : 'Off'}</span>
-                </button>
-
-                <div className="text-right">
-                  <p className="text-lg font-semibold text-slate-800">Chef: {user?.name || 'Kitchen Staff'}</p>
-                  <p className="text-slate-500 text-sm">{formatTime(new Date().toISOString())}</p>
-                </div>
-              </div>
-            </div>
+        <div className="card flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <h1 className="heading-2 text-slate-900">Kitchen Display</h1>
+            <select
+              value={selectedStation}
+              onChange={(e) => setSelectedStation(e.target.value)}
+              className="px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            >
+              <option value="all">All Stations</option>
+              <option value="grill">Grill Station</option>
+              <option value="fry">Fry Station</option>
+              <option value="salad">Salad Station</option>
+              <option value="pizza">Pizza Station</option>
+              <option value="dessert">Dessert Station</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${soundEnabled ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+            >
+              <span>{soundEnabled ? '🔊' : '🔇'}</span>
+              <span>Sound {soundEnabled ? 'On' : 'Off'}</span>
+            </button>
+            <span className="text-sm text-slate-600 font-medium">
+              Chef: {user?.name || 'Kitchen Staff'}
+            </span>
           </div>
         </div>
       )}
 
-      {/* Main Content */}
-      <div className={isPosMode ? "" : "w-full max-w-full p-4"}>
-        {/* Stats Overview */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
-            <div className="text-3xl font-black text-blue-600">{pendingOrders.length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Pending</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
-            <div className="text-3xl font-black text-orange-600">{preparingOrders.length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cooking</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
-            <div className="text-3xl font-black text-emerald-600">{readyOrders.length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Ready</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 text-center">
-            <div className="text-3xl font-black text-slate-600">{orders.length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</div>
-          </div>
+      {/* Stats Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card border-l-4 border-l-blue-500">
+          <div className="text-3xl font-bold text-blue-600 mb-1">{pendingOrders.length}</div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</div>
         </div>
-
-        {/* Orders Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* New Orders Column */}
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl shadow-md border-t-4 border-blue-500 overflow-hidden">
-              <div className="bg-blue-50 px-4 py-3 border-b border-blue-100">
-                <h2 className="text-lg font-black text-blue-800 flex items-center justify-between">
-                  <span>NEW ORDERS</span>
-                  <span className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full text-xs">
-                    {filteredPendingOrders.length}
-                  </span>
-                </h2>
-              </div>
-              <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto bg-slate-50/50">
-                {filteredPendingOrders.map(order => (
-                  <OrderCard
-                    key={order._id}
-                    order={order}
-                    onStatusUpdate={updateOrderStatus}
-                    getTimeElapsed={getTimeElapsed}
-                    getUrgencyColor={getUrgencyColor}
-                    getCookingTime={getCookingTime}
-                    nextStatus="preparing"
-                    buttonText="START"
-                    buttonColor="bg-blue-600 hover:bg-blue-700"
-                    status={order.kitchenStatus || order.status}
-                  />
-                ))}
-                {filteredPendingOrders.length === 0 && (
-                  <div className="text-center py-10 text-slate-400">
-                    <p>No new orders</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* In Progress Column */}
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl shadow-md border-t-4 border-orange-500 overflow-hidden">
-              <div className="bg-orange-50 px-4 py-3 border-b border-orange-100">
-                <h2 className="text-lg font-black text-orange-800 flex items-center justify-between">
-                  <span>COOKING</span>
-                  <span className="bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full text-xs">
-                    {filteredPreparingOrders.length}
-                  </span>
-                </h2>
-              </div>
-              <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto bg-slate-50/50">
-                {filteredPreparingOrders.map(order => (
-                  <OrderCard
-                    key={order._id}
-                    order={order}
-                    onStatusUpdate={updateOrderStatus}
-                    getTimeElapsed={getTimeElapsed}
-                    getUrgencyColor={getUrgencyColor}
-                    getCookingTime={getCookingTime}
-                    nextStatus="ready"
-                    buttonText="READY"
-                    buttonColor="bg-emerald-600 hover:bg-emerald-700"
-                    status="preparing"
-                  />
-                ))}
-                {filteredPreparingOrders.length === 0 && (
-                  <div className="text-center py-10 text-slate-400">
-                    <p>Nothing cooking</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Ready Column */}
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl shadow-md border-t-4 border-emerald-500 overflow-hidden">
-              <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-100">
-                <h2 className="text-lg font-black text-emerald-800 flex items-center justify-between">
-                  <span>READY</span>
-                  <span className="bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full text-xs">
-                    {readyOrders.length}
-                  </span>
-                </h2>
-              </div>
-              <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto bg-slate-50/50">
-                {readyOrders.map(order => (
-                  <OrderCard
-                    key={order._id}
-                    order={order}
-                    onStatusUpdate={updateOrderStatus}
-                    getTimeElapsed={getTimeElapsed}
-                    getUrgencyColor={getUrgencyColor}
-                    getCookingTime={getCookingTime}
-                    showReady={true}
-                    status="ready"
-                  />
-                ))}
-                {readyOrders.length === 0 && (
-                  <div className="text-center py-10 text-slate-400">
-                    <p>No orders ready</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
+        <div className="card border-l-4 border-l-orange-500">
+          <div className="text-3xl font-bold text-orange-600 mb-1">{preparingOrders.length}</div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cooking</div>
+        </div>
+        <div className="card border-l-4 border-l-emerald-500">
+          <div className="text-3xl font-bold text-emerald-600 mb-1">{readyOrders.length}</div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ready</div>
+        </div>
+        <div className="card border-l-4 border-l-slate-500">
+          <div className="text-3xl font-bold text-slate-600 mb-1">{orders.length}</div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</div>
         </div>
       </div>
+
+      {/* Orders Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* New Orders Column */}
+        <div className="flex flex-col">
+          <div className="card border-t-4 border-t-blue-500 overflow-hidden p-0 flex flex-col h-full">
+            <div className="bg-blue-50 px-5 py-3 border-b border-blue-100">
+              <h2 className="heading-3 text-blue-800 flex items-center justify-between">
+                <span>NEW ORDERS</span>
+                <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">
+                  {filteredPendingOrders.length}
+                </span>
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+              {filteredPendingOrders.map(order => (
+                <OrderCard
+                  key={order._id}
+                  order={order}
+                  onStatusUpdate={updateOrderStatus}
+                  getTimeElapsed={getTimeElapsed}
+                  getUrgencyColor={getUrgencyColor}
+                  getCookingTime={getCookingTime}
+                  nextStatus="preparing"
+                  buttonText="START"
+                  buttonColor="bg-blue-600 hover:bg-blue-700"
+                  status={order.kitchenStatus || order.status}
+                />
+              ))}
+              {filteredPendingOrders.length === 0 && (
+                <div className="text-center py-10 text-slate-400">
+                  <p>No new orders</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* In Progress Column */}
+        <div className="flex flex-col">
+          <div className="card border-t-4 border-t-orange-500 overflow-hidden p-0 flex flex-col h-full">
+            <div className="bg-orange-50 px-5 py-3 border-b border-orange-100">
+              <h2 className="heading-3 text-orange-800 flex items-center justify-between">
+                <span>COOKING</span>
+                <span className="bg-orange-200 text-orange-800 px-2 py-1 rounded-full text-xs font-bold">
+                  {filteredPreparingOrders.length}
+                </span>
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+              {filteredPreparingOrders.map(order => (
+                <OrderCard
+                  key={order._id}
+                  order={order}
+                  onStatusUpdate={updateOrderStatus}
+                  getTimeElapsed={getTimeElapsed}
+                  getUrgencyColor={getUrgencyColor}
+                  getCookingTime={getCookingTime}
+                  nextStatus="ready"
+                  buttonText="READY"
+                  buttonColor="bg-emerald-600 hover:bg-emerald-700"
+                  status="preparing"
+                />
+              ))}
+              {filteredPreparingOrders.length === 0 && (
+                <div className="text-center py-10 text-slate-400">
+                  <p>Nothing cooking</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Ready Column */}
+        <div className="flex flex-col">
+          <div className="card border-t-4 border-t-emerald-500 overflow-hidden p-0 flex flex-col h-full">
+            <div className="bg-emerald-50 px-5 py-3 border-b border-emerald-100">
+              <h2 className="heading-3 text-emerald-800 flex items-center justify-between">
+                <span>READY</span>
+                <span className="bg-emerald-200 text-emerald-800 px-2 py-1 rounded-full text-xs font-bold">
+                  {readyOrders.length}
+                </span>
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+              {readyOrders.map(order => (
+                <OrderCard
+                  key={order._id}
+                  order={order}
+                  onStatusUpdate={updateOrderStatus}
+                  getTimeElapsed={getTimeElapsed}
+                  getUrgencyColor={getUrgencyColor}
+                  getCookingTime={getCookingTime}
+                  showReady={true}
+                  status="ready"
+                />
+              ))}
+              {readyOrders.length === 0 && (
+                <div className="text-center py-10 text-slate-400">
+                  <p>No orders ready</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
+
   );
 };
 

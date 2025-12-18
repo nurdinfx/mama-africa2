@@ -257,50 +257,46 @@ const Tables = ({ isPosMode = false }) => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        <p className="ml-4 text-gray-600">Loading tables...</p>
+      <div className="h-full w-full flex items-center justify-center bg-[#f4f7fb]">
+        <div className="flex items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="ml-4 text-gray-600">Loading tables...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
       {!isPosMode && (
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Table Management</h1>
-            <p className="text-gray-600">Manage restaurant tables and their status</p>
-
-            {/* Status Info */}
-            <div className="mt-2 space-y-1">
+        <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="heading-1 text-white mb-2">Table Management</h1>
+              <p className="text-blue-100">Total tables: {tables.length} · Status synced with active orders</p>
               {error && (
-                <div className="p-2 bg-red-100 text-red-700 rounded-md text-sm">
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
                   {error}
                 </div>
               )}
-              <div className="text-xs text-gray-500">
-                Total tables: {tables.length} | Connected to Backend
-              </div>
             </div>
-          </div>
-
-          <div className="flex space-x-3">
-            <button
-              onClick={loadTables}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium"
-            >
-              🔄 Refresh
-            </button>
-            <button
-              onClick={() => {
-                setEditingTable(null);
-                setShowModal(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-            >
-              + Add Table
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={loadTables}
+                className="bg-white/20 text-white border border-white/30 px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition-colors"
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => {
+                  setEditingTable(null);
+                  setShowModal(true);
+                }}
+                className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium shadow-sm hover:bg-blue-50 transition-colors"
+              >
+                + Add Table
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -405,10 +401,10 @@ const Tables = ({ isPosMode = false }) => {
               <div className="flex items-center">
                 <div
                   className={`w-3 h-3 rounded-full mr-2 ${table.status === 'available' ? 'bg-green-500' :
-                      table.status === 'occupied' ? 'bg-red-500' :
-                        table.status === 'reserved' ? 'bg-yellow-500' :
-                          table.status === 'cleaning' ? 'bg-blue-500' :
-                            'bg-gray-500'
+                    table.status === 'occupied' ? 'bg-red-500' :
+                      table.status === 'reserved' ? 'bg-yellow-500' :
+                        table.status === 'cleaning' ? 'bg-blue-500' :
+                          'bg-gray-500'
                     }`}
                 ></div>
                 <span className="text-sm font-medium capitalize text-gray-600">
@@ -421,7 +417,7 @@ const Tables = ({ isPosMode = false }) => {
             </div>
 
             {/* Table Info */}
-            <div className="text-center mb-4">
+            <div className="text-left mb-4">
               <h3 className="text-xl font-bold text-gray-900">
                 {table.name || `Table ${table.number || table.tableNumber}`}
               </h3>

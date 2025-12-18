@@ -1,32 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
 import { API_CONFIG } from '../config/api.config';
-import { useNavigate } from 'react-router-dom';
-import Tables from './tables';
-import Kitchen from './kitchen';
 import {
-  LogOut,
-  LayoutGrid,
-  ChefHat,
-  Receipt,
-  Clock,
-  User,
-  Monitor,
   Search,
   Plus,
   Minus,
   Trash2,
-  CheckCircle,
-  Menu,
-  X,
   CreditCard,
-  DollarSign,
-  Coffee,
-  Utensils
+  ShoppingCart,
+  Printer,
+  User,
+  Table,
+  Percent,
+  Tag,
+  Clock,
+  Calendar,
 } from 'lucide-react';
 
 const POS = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [tables, setTables] = useState([]);
@@ -35,29 +29,26 @@ const POS = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [settingsLoading, setSettingsLoading] = useState(false);
   const [selectedTable, setSelectedTable] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [orderType, setOrderType] = useState('dine-in');
-  const [customer, setCustomer] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingItem, setEditingItem] = useState(null);
 
   // Financial State
   const [discount, setDiscount] = useState(0);
-  const [discountType, setDiscountType] = useState('percent');
-  const [tipPercentage, setTipPercentage] = useState(0);
+  const [vatPercentage, setVatPercentage] = useState(5);
+  const [tipAmount, setTipAmount] = useState(0);
 
-  // Layout State
-  const [activeTab, setActiveTab] = useState('ORDER');
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const { user } = useAuth();
 
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  // Real-time date and time
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -66,76 +57,65 @@ const POS = () => {
     loadSettings();
   }, []);
 
-  // Set default tab based on role
-  useEffect(() => {
-    if (user?.role === 'waiter') {
-      setActiveTab('TABLES');
-    } else {
-      setActiveTab('ORDER');
-    }
-  }, [user]);
-
+  /* Optimized Data Loading for "Soft and Quick" Feel */
   const loadPOSData = async () => {
-    try {
-      setLoading(true);
-      const [productsResponse, categoriesResponse, tablesResponse, customersResponse] = await Promise.all([
-        realApi.getProducts(),
-        realApi.getCategories(),
-        realApi.getAvailableTables(),
-        realApi.getCustomers()
-      ]);
+    setLoading(true);
 
-      if (productsResponse.success) {
-        const productsData = realApi.extractData(productsResponse) || [];
-        setProducts(Array.isArray(productsData) ? productsData : []);
-      }
-      if (categoriesResponse.success) {
-        const categoriesData = realApi.extractData(categoriesResponse) || [];
-        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
-      } else {
-        setCategories(['Main Course', 'Salads', 'Sides', 'Beverages', 'Desserts']);
-      }
-      if (tablesResponse.success) setTables(realApi.extractData(tablesResponse) || []);
-      if (customersResponse.success) setCustomers(realApi.extractData(customersResponse) || []);
+    // Load Products immediately
+    realApi.getProducts()
+      .then(response => {
+        if (response.success) {
+          const productsData = realApi.extractData(response) || [];
+          setProducts(Array.isArray(productsData) ? productsData : []);
+        }
+      })
+      .catch(err => console.error('Error loading products:', err))
+      .finally(() => setLoading(false)); // Turn off loading as soon as products are here
 
-    } catch (error) {
-      console.error('❌ Error loading POS data:', error);
-    } finally {
-      setLoading(false);
-    }
+    // Load Categories
+    realApi.getCategories()
+      .then(response => {
+        if (response.success) {
+          const categoriesData = realApi.extractData(response) || [];
+          setCategories(['BREAKFAST & SNACKS', 'LUNCH', 'DINNER', 'DRINKS', 'OTHERS', ...categoriesData]);
+        }
+      })
+      .catch(() => setCategories(['BREAKFAST & SNACKS', 'LUNCH', 'DINNER', 'DRINKS', 'OTHERS']));
+
+    // Load Tables (Background)
+    realApi.getAvailableTables()
+      .then(response => {
+        if (response.success) setTables(realApi.extractData(response) || []);
+      })
+      .catch(err => console.error('Error loading tables:', err));
+
+    // Load Customers (Background)
+    realApi.getCustomers()
+      .then(response => {
+        if (response.success) setCustomers(realApi.extractData(response) || []);
+      })
+      .catch(err => console.error('Error loading customers:', err));
   };
 
   const loadSettings = async () => {
     try {
-      setSettingsLoading(true);
       const response = await realApi.getSettings();
       if (response.success) {
         const settingsData = realApi.extractData(response);
-        if (settingsData) setSettings(settingsData);
+        if (settingsData) {
+          setSettings(settingsData);
+          setVatPercentage(settingsData.taxRate || 5);
+        }
       }
     } catch (error) {
       console.error('❌ Error loading settings:', error);
-    } finally {
-      setSettingsLoading(false);
     }
-  };
-
-  const getProductImageUrl = (product) => {
-    if (!product.image) return '/no-image.png';
-    if (product.image.startsWith('http')) {
-      if (window.location.hostname === 'localhost' && product.image.includes('mama-africa1.onrender.com')) {
-        return product.image.replace('https://mama-africa1.onrender.com', 'http://localhost:5000');
-      }
-      return product.image;
-    }
-    const backendUrl = API_CONFIG.BACKEND_URL;
-    if (product.image.startsWith('/uploads')) return `${backendUrl}${product.image}`;
-    return `${backendUrl}/uploads/products/${product.image}`;
   };
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (product.barcode && product.barcode.includes(searchQuery));
     return matchesCategory && matchesSearch;
   });
 
@@ -155,7 +135,7 @@ const POS = () => {
           item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
         );
       } else {
-        return [...prevCart, { ...product, quantity: 1, addedAt: new Date().toISOString() }];
+        return [...prevCart, { ...product, quantity: 1 }];
       }
     });
   };
@@ -170,451 +150,573 @@ const POS = () => {
       alert(`Only ${productInCart.stock} items available in stock`);
       return;
     }
-    setCart(prevCart => prevCart.map(item => item._id === productId ? { ...item, quantity: newQuantity } : item));
+    setCart(prevCart => prevCart.map(item =>
+      item._id === productId ? { ...item, quantity: newQuantity } : item
+    ));
   };
 
   const removeFromCart = (productId) => {
     setCart(prevCart => prevCart.filter(item => item._id !== productId));
   };
 
-  const getFinancials = () => {
+  const calculateTotals = () => {
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    let discountAmount = discountType === 'percent' ? subtotal * (discount / 100) : (parseFloat(discount) || 0);
-    const taxableAmount = Math.max(0, subtotal - discountAmount);
-    const tax = taxableAmount * ((settings?.taxRate || 5) / 100);
-    const tipAmount = tipPercentage > 0 ? (taxableAmount * (tipPercentage / 100)) : 0;
-    const total = taxableAmount + tax + tipAmount;
-    return { subtotal, discountAmount, tax, tipAmount, total };
+    const vatAmount = subtotal * (vatPercentage / 100);
+    const discountAmount = discount;
+    const tip = tipAmount;
+    const total = subtotal + vatAmount - discountAmount + tip;
+
+    return {
+      subtotal,
+      vatAmount,
+      discountAmount,
+      tip,
+      total
+    };
   };
 
-  const { subtotal, discountAmount, tax, tipAmount, total } = getFinancials();
+  const { subtotal, vatAmount, discountAmount, tip, total } = calculateTotals();
+
+  const handleCreateOrder = async () => {
+    if (cart.length === 0) return alert('Cart is empty');
+
+    try {
+      const orderData = {
+        items: cart.map(item => ({
+          product: item._id,
+          quantity: item.quantity,
+          price: item.price,
+          name: item.name,
+          total: item.price * item.quantity
+        })),
+        orderType,
+        paymentMethod,
+        tableId: selectedTable,
+        customerId: selectedCustomer,
+        subtotal,
+        tax: vatAmount,
+        discount: discountAmount,
+        tip: tipAmount,
+        finalTotal: total,
+        orderDate: new Date().toISOString(),
+        status: 'completed',
+        paymentStatus: 'paid'
+      };
+
+      const response = await realApi.createOrder(orderData);
+      if (response.success) {
+        printReceipt(response.data);
+        clearCart();
+      }
+    } catch (error) {
+      console.error('Order creation error:', error);
+      alert('Error creating order');
+    }
+  };
 
   const printReceipt = (order) => {
-    const printWindow = window.open('', '_blank', 'width=300,height=600');
-    if (!printWindow) {
-      alert('Please allow popups to print receipts');
-      return;
-    }
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) return;
 
-    const now = new Date();
-    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const formattedDate = new Date().toLocaleString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).replace(',', '');
 
-    const restaurantName = settings?.restaurantName || 'Mama Africa Restaurant';
-    const receiptNumber = order.orderNumber || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const serverName = user?.name || 'System';
-
-    // Calculate totals if not in order object
-    const pSubtotal = order.subtotal || subtotal || 0;
-    const pTax = order.tax || tax || 0;
-    const pDiscount = order.discount || discountAmount || 0;
-    const pTotal = order.finalTotal || total || 0;
+    // Calculate totals for receipt
+    const currency = 'USD'; // Assuming USD as per image
+    const localCurrencyRatio = 0; // From image: Total L/Currency: 0
 
     const receiptContent = `
-      <!DOCTYPE html>
       <html>
         <head>
-          <title>Restaurant Receipt</title>
+          <title>Receipt</title>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
+            @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap');
+            
             body { 
-              font-family: 'Courier New', monospace; 
-              font-size: 12px; 
-              margin: 0; 
-              padding: 10px; 
-              width: 280px;
-              color: black;
+              font-family: 'Roboto Mono', monospace; 
+              margin: 0;
+              padding: 10px;
+              color: #000;
+              font-size: 12px;
+              width: 300px; /* Thermal printer width approx */
             }
-            .header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 8px; }
-            .restaurant-name { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
-            .payment-methods { text-align: center; font-size: 10px; margin-bottom: 8px; line-height: 1.2; }
-            .order-info { margin-bottom: 8px; font-size: 10px; line-height: 1.3; }
-            .items { margin: 8px 0; border-bottom: 1px dashed #000; padding-bottom: 8px; }
-            .item-row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 10px; }
-            .item-name { flex: 2; }
-            .item-qty { flex: 1; text-align: center; }
-            .item-price { flex: 1; text-align: right; }
-            .totals { margin: 8px 0; border-bottom: 1px dashed #000; padding-bottom: 8px; }
-            .total-row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 10px; }
-            .grand-total { font-weight: bold; font-size: 12px; }
-            .footer { text-align: center; margin-top: 10px; font-size: 10px; }
+            .header { text-align: center; margin-bottom: 15px; }
+            .restaurant-name { 
+              font-size: 16px; 
+              font-weight: bold; 
+              margin: 0 0 5px 0;
+            }
+            .sub-header {
+              font-size: 10px;
+              margin-bottom: 5px;
+            }
+            .phones {
+              font-size: 10px;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 10px;
+              margin-bottom: 10px;
+            }
+            .info-row {
+              display: flex;
+              margin-bottom: 2px;
+            }
+            .info-label {
+              width: 80px;
+            }
+            .dashed-line {
+              border-top: 1px dashed #000;
+              margin: 10px 0;
+            }
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 5px 0;
+            }
+            .items-table th {
+              text-align: left;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 5px;
+              font-weight: normal;
+              font-size: 10px;
+            }
+            .items-table td {
+              padding: 5px 0;
+              vertical-align: top;
+            }
+            .col-item { width: 50%; }
+            .col-no { width: 10%; text-align: center; }
+            .col-price { width: 20%; text-align: right; }
+            .col-total { width: 20%; text-align: right; }
+            
+            .totals {
+              margin-top: 10px;
+              border-top: 1px dashed #000;
+              padding-top: 5px;
+            }
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 3px;
+            }
+            .grand-total {
+              font-weight: bold;
+              font-size: 14px;
+              margin-top: 5px;
+              border-top: 1px dashed #000;
+              padding-top: 5px;
+            }
+            .qr-container {
+              display: flex;
+              justify-content: center;
+              margin: 20px 0;
+            }
+            .footer {
+              text-align: center;
+              font-size: 10px;
+              margin-top: 10px;
+            }
+            .powered-by {
+              font-size: 9px;
+              color: #555;
+              margin-top: 5px;
+            }
           </style>
         </head>
         <body>
           <div class="header">
-            <div class="restaurant-name">${restaurantName}</div>
-            <div class="payment-methods">
-              ZAAD: 515735 - SAHAL: 523080-<br>
-              E-DAHAB: 742298 - MYCash: 931539
+            <h1 class="restaurant-name">Mamma Africa<br>Restaurant</h1>
+            <div class="phones">
+              ZAAD: 515735 - SAHAL: 523080<br>
+              E-DAHAB: 742298 - MyCash: 931539
             </div>
           </div>
           
-          <div class="order-info">
-            <div><strong>Receipt No:</strong> ${receiptNumber}</div>
-            <div><strong>Server:</strong> ${serverName}</div>
-            <div><strong>Date:</strong> ${formattedDate}</div>
-            ${order.tableId ? `<div><strong>Table:</strong> ${tables.find(t => t._id === order.tableId)?.number || 'N/A'}</div>` : ''}
-            <div><strong>Customer:</strong> ${order.customerName || 'Walk-in'}</div>
+          <div class="info-row">
+            <span class="info-label">Receipt Number:</span>
+            <span>${order.orderNumber || '11291'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Served By:</span>
+            <span>${user?.name || 'A'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Customer:</span>
+            <span>${selectedCustomer ? customers.find(c => c._id === selectedCustomer)?.name : 'Walking Customer'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Date:</span>
+            <span>${formattedDate}</span>
           </div>
 
-          <div class="items">
-            <div class="item-row" style="font-weight:bold; border-bottom:1px solid #eee; margin-bottom:4px">
-              <span class="item-name">Item</span>
-              <span class="item-qty">Qty</span>
-              <span class="item-price">Total</span>
-            </div>
-            ${order.items.map(item => `
-              <div class="item-row">
-                <span class="item-name">${item.name || item.product?.name}</span>
-                <span class="item-qty">${item.quantity}</span>
-                <span class="item-price">${(item.price * item.quantity).toFixed(2)}</span>
-              </div>
-            `).join('')}
-          </div>
+          <div class="dashed-line"></div>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th class="col-item">Item</th>
+                <th class="col-no">No.</th>
+                <th class="col-price">Price</th>
+                <th class="col-total">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${order.items.map((item, idx) => `
+                <tr>
+                  <td class="col-item">${idx + 1}. ${item.name}</td>
+                  <td class="col-no">${item.quantity}</td>
+                  <td class="col-price">${item.price.toFixed(2)}</td>
+                  <td class="col-total">${(item.price * item.quantity).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
 
           <div class="totals">
-            <div class="total-row"><span>Subtotal</span><span>$${pSubtotal.toFixed(2)}</span></div>
-            ${pDiscount > 0 ? `<div class="total-row"><span>Discount</span><span>-$${pDiscount.toFixed(2)}</span></div>` : ''}
-            <div class="total-row"><span>Tax</span><span>$${pTax.toFixed(2)}</span></div>
-            <div class="total-row grand-total"><span>TOTAL</span><span>$${pTotal.toFixed(2)}</span></div>
+            <div class="total-row">
+              <span>Vat @ ${vatPercentage}%</span>
+              <span>${order.tax.toFixed(2)}</span>
+            </div>
+            <div class="total-row">
+              <span>Paid Amount</span>
+              <span>${order.subtotal.toFixed(2)}</span>
+            </div>
+            <div class="dashed-line"></div>
+            <div class="total-row grand-total">
+              <span>Total :</span>
+              <span>${order.finalTotal.toFixed(2)}</span>
+            </div>
+            <div class="total-row">
+              <span>Total L/Currency :</span>
+              <span>${(order.finalTotal * 1).toFixed(0)}</span>
+            </div>
+          </div>
+          
+          <div class="dashed-line"></div>
+
+          <div class="qr-container">
+            <div id="qrcode"></div>
           </div>
 
           <div class="footer">
-            <div style="font-weight:bold">Thank You!</div>
-            <div style="margin: 10px 0;">
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${receiptNumber}" alt="QR Code" width="80" height="80" />
-            </div>
-            <div style="font-size: 9px; color: #555;">Powered by Hudi-SomProjects</div>
+            <div>Thank you for visiting us</div>
+            <div class="powered-by">Powered by Hyper-Soft</div>
           </div>
+
+          <script>
+            setTimeout(() => {
+              new QRCode(document.getElementById("qrcode"), {
+                text: "ORDER-${order.orderNumber || Date.now()}",
+                width: 100,
+                height: 100,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+              });
+              
+              // Auto print after QR generation
+              setTimeout(() => {
+                window.print();
+                // window.close(); // Optional: close after print
+              }, 500);
+            }, 100);
+          </script>
         </body>
       </html>
     `;
 
     printWindow.document.write(receiptContent);
     printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  };
-
-  const handleCheckout = async () => {
-    if (cart.length === 0) return alert('Cart is empty');
-    if (orderType === 'dine-in' && !selectedTable) return alert('Please select a table for dine-in orders');
-
-    try {
-      const orderData = {
-        items: cart.map(item => ({
-          product: item._id, quantity: item.quantity, price: item.price, name: item.name,
-          modifiers: item.modifiers, notes: item.notes, total: item.price * item.quantity
-        })),
-        orderType, paymentMethod, tableId: selectedTable, customerId: selectedCustomer,
-        customerName: selectedCustomer ? customers.find(c => c._id === selectedCustomer)?.name : customer || 'Walking Customer',
-        subtotal, tax, discount: discountAmount, tip: tipAmount, finalTotal: total,
-        orderDate: new Date().toISOString(), taxRate: settings?.taxRate || 5, currency: settings?.currency || 'USD',
-        status: 'completed', paymentStatus: 'paid'
-      };
-
-      const response = await realApi.createOrder(orderData);
-      if (response.success) {
-        // Automatically print receipt
-        // Use response data if available, or fallback to local data
-        const createdOrder = response.data || { ...orderData, orderNumber: 'POS-' + Date.now().toString().slice(-4) };
-        printReceipt(createdOrder);
-
-        // alert('Order created and sent to print!');
-        clearCart();
-      } else {
-        throw new Error(response.message || 'Failed to create order');
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      alert('Error creating order: ' + error.message);
-    }
-  };
-
-  const handleSendToKitchen = async () => {
-    if (cart.length === 0) return alert('Cart is empty');
-    if (orderType === 'dine-in' && !selectedTable) return alert('Please select a table for dine-in orders');
-
-    try {
-      const orderData = {
-        items: cart.map(item => ({
-          product: item._id, quantity: item.quantity, price: item.price, name: item.name,
-          modifiers: item.modifiers, notes: item.notes, total: item.price * item.quantity
-        })),
-        orderType, paymentMethod: 'pending', tableId: selectedTable, customerId: selectedCustomer,
-        customerName: selectedCustomer ? customers.find(c => c._id === selectedCustomer)?.name : customer || 'Walking Customer',
-        subtotal, tax, discount: discountAmount, tip: tipAmount, finalTotal: total,
-        orderDate: new Date().toISOString(), taxRate: settings?.taxRate || 5, currency: settings?.currency || 'USD',
-        status: 'pending', paymentStatus: 'unpaid'
-      };
-
-      const response = await realApi.createOrder(orderData);
-      if (response.success) {
-        alert('Order sent to Kitchen!');
-        clearCart();
-      } else {
-        throw new Error(response.message || 'Failed to send order');
-      }
-    } catch (error) {
-      console.error('Kitchen error:', error);
-      alert('Error sending to kitchen: ' + error.message);
-    }
   };
 
   const clearCart = () => {
     setCart([]);
     setSelectedTable(null);
     setSelectedCustomer(null);
-    setCustomer('');
     setDiscount(0);
-    setTipPercentage(0);
+    setTipAmount(0);
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error("Logout failed", error);
-    }
+  // Format date and time
+  const formatTime = (date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const formatTime = (date) => date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
-  // Render Component (Refined for Reference Match)
   return (
-    <div className="flex h-screen bg-slate-900 font-sans text-slate-100 overflow-hidden">
+    <div className="pos-fullscreen-container">
+      {/* HEADER SECTION - UPDATED TO MATCH REFERENCE */}
+      <div className="pos-header-bar">
+        <div className="pos-branding">
+          <div className="pos-logo-text">POS</div>
+        </div>
 
-      {/* 1. SIDEBAR (Dark, Left) */}
-      <div className="w-20 bg-[#1e222e] flex flex-col items-center py-4 gap-4 z-20 shadow-2xl border-r border-slate-800">
-        {/* Branding Placeholder */}
-        <div className="mb-2">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="font-bold text-lg text-white">M</span>
+        <div className="pos-header-actions">
+          <div className="pos-header-tab" onClick={() => navigate('/orders')}>
+            <span>Orders</span>
+          </div>
+
+          <div className="pos-search-wrapper">
+            <Search size={18} className="text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by Name or Barcode"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
 
-        <NavIcon icon={LayoutGrid} label="POS" active={activeTab === 'ORDER'} onClick={() => setActiveTab('ORDER')} />
-        <NavIcon icon={Utensils} label="Tables" active={activeTab === 'TABLES'} onClick={() => setActiveTab('TABLES')} />
-        <NavIcon icon={ChefHat} label="Kitchen" active={activeTab === 'KITCHEN'} onClick={() => setActiveTab('KITCHEN')} />
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        <NavIcon icon={User} label="Profile" onClick={() => { }} />
-        <NavIcon icon={LogOut} label="Exit" color="text-red-500" onClick={handleLogout} />
+        <div className="pos-header-info">
+          <div className="pos-user-display">
+            <User size={18} />
+            <span>{user?.name || 'Cashier'}</span>
+          </div>
+          <div className="pos-time-display">
+            <span>{formatDate(currentDateTime)} {formatTime(currentDateTime)}</span>
+          </div>
+        </div>
       </div>
 
-      {/* 2. MAIN CONTENT AREA */}
-      <div className="flex-1 flex overflow-hidden relative bg-slate-100">
+      {/* MAIN CONTENT AREA */}
+      <div className="pos-main-content">
+        {/* LEFT SIDE - PRODUCTS */}
+        <div className="pos-products-section">
+          {/* CATEGORY TABS */}
+          <div className="pos-categories">
+            {categories.map((category, index) => (
+              <button
+                key={index}
+                className={`pos-category-tab ${selectedCategory === category ? 'active' : ''}`}
+                onClick={() => setSelectedCategory(category)}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
 
-        {activeTab === 'TABLES' && <Tables isPosMode={true} />}
-        {activeTab === 'KITCHEN' && <Kitchen isPosMode={true} />}
+          {/* PRODUCTS GRID */}
+          <div className="pos-products-grid">
+            {filteredProducts.map((product) => {
+              const backendUrl = API_CONFIG.BACKEND_URL;
+              let imageUrl = product.image || '';
 
-        {activeTab === 'ORDER' && (
-          <>
-            {/* MIDDLE: MENU SECTION */}
-            <div className="flex-1 flex flex-col bg-slate-200 overflow-hidden relative">
+              if (imageUrl && !imageUrl.startsWith('http')) {
+                imageUrl = `${backendUrl}${imageUrl}`;
+              } else if (imageUrl && imageUrl.includes('mama-africa1.onrender.com') && window.location.hostname === 'localhost') {
+                imageUrl = imageUrl.replace('https://mama-africa1.onrender.com', 'http://localhost:5000');
+              } else if (!imageUrl) {
+                // Use a placeholder or nothing if no image
+                imageUrl = '';
+              }
 
-              {/* Blue Top Category Bar */}
-              <div className="h-14 bg-[#1e222e] flex items-center shadow-md z-10 w-full overflow-hidden">
-                <div className="flex-1 flex overflow-x-auto no-scrollbar">
-                  <CategoryTab
-                    label="All"
-                    active={selectedCategory === 'All'}
-                    onClick={() => setSelectedCategory('All')}
-                  />
-                  {categories.map((cat, idx) => (
-                    <CategoryTab
-                      key={idx}
-                      label={cat}
-                      active={selectedCategory === cat}
-                      onClick={() => setSelectedCategory(cat)}
-                    />
-                  ))}
-                </div>
-                {/* Search in Top Right of Middle Pane */}
-                {/* Search in Top Right of Middle Pane - Expanded */}
-                <div className="w-96 px-6 border-l border-slate-700 bg-[#1e222e] flex items-center">
-                  <div className="relative w-full">
-                    <Search size={24} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input
-                      type="text"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg text-lg text-white pl-12 py-3 focus:border-blue-500 outline-none placeholder:text-slate-600"
-                      placeholder="Search Products..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Products Area */}
-              <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pb-20">
-                  {filteredProducts.map(product => (
-                    <ProductCard
-                      key={product._id}
-                      product={product}
-                      onClick={() => addToCart(product)}
-                      getImageUrl={getProductImageUrl}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT: CART SECTION */}
-            <div className="w-[380px] bg-white flex flex-col shadow-2xl z-30 relative">
-
-              {/* Cart Header */}
-              <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4">
-                <h2 className="text-slate-800 font-bold text-lg">Shopping Cart</h2>
-                <button onClick={clearCart} className="text-red-500 hover:bg-red-50 p-1 rounded">
-                  <Trash2 size={18} />
-                </button>
-              </div>
-
-              {/* Order List */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                {/* Table/Customer Header */}
-                <div className="grid grid-cols-2 gap-2 mb-2 p-2">
-                  <select
-                    className="bg-slate-50 border border-slate-200 text-xs rounded p-1.5 outline-none text-slate-700"
-                    value={selectedTable || ''}
-                    onChange={(e) => setSelectedTable(e.target.value)}
-                  >
-                    <option value="">Table</option>
-                    {tables.map(t => <option key={t._id} value={t._id}>{t.number}</option>)}
-                  </select>
-                  <select
-                    className="bg-slate-50 border border-slate-200 text-xs rounded p-1.5 outline-none text-slate-700"
-                    value={selectedCustomer || ''}
-                    onChange={(e) => setSelectedCustomer(e.target.value)}
-                  >
-                    <option value="">Walk-in</option>
-                    {customers.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
-                  </select>
-                </div>
-
-                {cart.length === 0 ? (
-                  <div className="h-40 flex flex-col items-center justify-center text-slate-300">
-                    <LayoutGrid size={40} className="mb-2 opacity-20" />
-                    <span className="text-sm">Empty Cart</span>
-                  </div>
-                ) : (
-                  cart.map((item, index) => (
-                    <div key={`${item._id}-${index}`} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded border-b border-slate-100 last:border-0">
-                      <div className="flex-1">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-semibold text-slate-800">{item.name}</span>
-                          <span className="text-sm font-bold text-slate-800">${(item.price * item.quantity).toFixed(2)}</span>
-                        </div>
-                        <div className="flex items-center gap-4 mt-1">
-                          <span className="text-xs text-slate-500">${item.price}</span>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => updateQuantity(item._id, item.quantity - 1)} className="w-5 h-5 flex items-center justify-center bg-slate-100 rounded text-slate-600 hover:text-red-600 border border-slate-200"><Minus size={10} /></button>
-                            <span className="text-xs font-bold w-4 text-center text-slate-700">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item._id, item.quantity + 1)} className="w-5 h-5 flex items-center justify-center bg-slate-100 rounded text-slate-600 hover:text-blue-600 border border-slate-200"><Plus size={10} /></button>
-                          </div>
-                        </div>
-                      </div>
+              return (
+                <div
+                  key={product._id}
+                  className="pos-product-card"
+                  onClick={() => addToCart(product)}
+                >
+                  {imageUrl && (
+                    <div style={{ width: '100%', height: '140px', marginBottom: '8px', overflow: 'hidden', borderRadius: '4px', flexShrink: 0 }}>
+                      <img
+                        src={imageUrl}
+                        alt={product.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => e.target.style.display = 'none'}
+                      />
                     </div>
-                  ))
-                )}
-              </div>
-
-              {/* Footer Totals & Buttons */}
-              <div className="bg-slate-50 p-4 border-t border-slate-200">
-                <div className="space-y-1 mb-3 text-sm">
-                  <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between text-slate-500"><span>Tax</span><span>${tax.toFixed(2)}</span></div>
-                  {discountAmount > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-${discountAmount.toFixed(2)}</span></div>}
-                  <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200 mt-1"><span>Total</span><span>${total.toFixed(2)}</span></div>
+                  )}
+                  <div className="pos-product-name">{product.name}</div>
+                  <div className="pos-product-price">${product.price.toFixed(2)}</div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
 
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-3 h-12">
-                  <button
-                    onClick={clearCart}
-                    className="bg-cyan-100 hover:bg-cyan-200 text-cyan-700 font-bold rounded-lg text-sm transition-colors"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={handleCheckout}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm shadow-lg shadow-blue-200 transition-all transform active:scale-95"
-                  >
-                    Place Order
-                  </button>
-                </div>
-              </div>
-
+        {/* RIGHT SIDE - CART & CONTROLS */}
+        <div className="pos-cart-section">
+          {/* ... (Cart Header and Items remain same, implicitly included via surrounding context if not changing) ... */}
+          <div className="pos-cart-header">
+            <h3>Order Details</h3>
+            <div className="pos-cart-summary">
+              <span>Items: {cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
             </div>
-          </>
-        )}
+          </div>
+
+          <div className="pos-cart-items">
+            {cart.length === 0 ? (
+              <div className="pos-empty-cart">
+                <ShoppingCart size={48} />
+                <p>No items in cart</p>
+              </div>
+            ) : (
+              cart.map((item) => (
+                <div key={item._id} className="pos-cart-item">
+                  <div className="pos-cart-item-info">
+                    <div className="pos-cart-item-name">{item.name}</div>
+                    <div className="pos-cart-item-price">${item.price.toFixed(2)}</div>
+                  </div>
+                  <div className="pos-cart-item-controls">
+                    <button onClick={() => updateQuantity(item._id, item.quantity - 1)}>
+                      <Minus size={16} />
+                    </button>
+                    <span className="pos-cart-item-quantity">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item._id, item.quantity + 1)}>
+                      <Plus size={16} />
+                    </button>
+                    <button
+                      onClick={() => removeFromCart(item._id)}
+                      className="pos-cart-item-remove"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="pos-cart-item-subtotal">
+                    ${(item.price * item.quantity).toFixed(2)}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* TOTALS SECTION */}
+          <div className="pos-totals-section">
+            <div className="pos-total-row">
+              <span>Subtotal:</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="pos-total-row">
+              <span>VAT ({vatPercentage}%):</span>
+              <span>${vatAmount.toFixed(2)}</span>
+            </div>
+            <div className="pos-total-row">
+              <span>Discount:</span>
+              <span>-${discountAmount.toFixed(2)}</span>
+            </div>
+            <div className="pos-total-row">
+              <span>Tip:</span>
+              <span>${tip.toFixed(2)}</span>
+            </div>
+            <div className="pos-total-row grand-total">
+              <span>Total:</span>
+              <span>${total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* CONTROLS SECTION */}
+          <div className="pos-controls-section">
+            {/* TABLE & CUSTOMER SELECTION */}
+            <div className="pos-selection-controls">
+              <div className="pos-select-group">
+                <label><Table size={16} /> Table</label>
+                <select
+                  value={selectedTable || ''}
+                  onChange={(e) => setSelectedTable(e.target.value)}
+                >
+                  <option value="">Select Table</option>
+                  {tables.map(table => (
+                    <option key={table._id} value={table._id}>
+                      {table.number} - {table.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pos-select-group">
+                <label><User size={16} /> Customer</label>
+                <select
+                  value={selectedCustomer || ''}
+                  onChange={(e) => setSelectedCustomer(e.target.value)}
+                >
+                  <option value="">Walk-in Customer</option>
+                  {customers.map(customer => (
+                    <option key={customer._id} value={customer._id}>
+                      {customer.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* DISCOUNT & VAT CONTROLS */}
+            <div className="pos-discount-controls">
+              <div className="pos-input-group">
+                <label><Percent size={16} /> Discount</label>
+                <input
+                  type="number"
+                  value={discount}
+                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                  min="0"
+                />
+              </div>
+
+              <div className="pos-input-group">
+                <label><Tag size={16} /> Vat %</label>
+                <input
+                  type="number"
+                  value={vatPercentage}
+                  onChange={(e) => setVatPercentage(parseFloat(e.target.value) || 0)}
+                  min="0"
+                  max="100"
+                />
+              </div>
+            </div>
+
+            {/* ACTION BUTTONS */}
+            <div className="pos-action-buttons">
+              <button
+                className="pos-btn-clear"
+                onClick={clearCart}
+                style={{
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+              >
+                <Trash2 size={20} />
+                Clear
+              </button>
+
+              <button className="pos-btn-vat">
+                Vat {vatPercentage}%
+              </button>
+
+              <button
+                className="pos-btn-create-order"
+                onClick={handleCreateOrder}
+                style={{
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  boxShadow: '0 4px 6px rgba(37, 99, 235, 0.2)',
+                  transform: 'scale(1.02)'
+                }}
+              >
+                <CreditCard size={20} />
+                Create Order
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-// Sub-components for cleaner code
-const NavIcon = ({ icon: Icon, label, active, onClick, color }) => (
-  <button
-    onClick={onClick}
-    className={`flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-xl transition-all ${active
-      ? 'bg-blue-600 text-white shadow-lg'
-      : 'hover:bg-slate-800 text-slate-400'
-      }`}
-  >
-    <div className={`p-2 rounded-full ${color || 'bg-transparent'}`}>
-      <Icon size={20} strokeWidth={2} className={active ? 'text-white' : 'text-slate-400'} />
-    </div>
-    <span className="text-[10px] font-medium leading-none">{label}</span>
-  </button>
-);
-
-const CategoryTab = ({ label, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`px-6 py-3 text-sm font-bold transition-colors relative flex items-center justify-center ${active
-      ? 'bg-blue-600 text-white'
-      : 'hover:bg-slate-800/50 text-slate-300 hover:text-white'
-      }`}
-  >
-    {label}
-    {active && (
-      <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-    )}
-  </button>
-);
-
-const ProductCard = ({ product, onClick, getImageUrl }) => (
-  <div
-    onClick={onClick}
-    className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group relative flex flex-col h-48"
-  >
-    <div className="flex-1 relative overflow-hidden">
-      <img
-        src={getImageUrl(product)}
-        alt={product.name}
-        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-      />
-      <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg shadow-sm">
-        {product.stock || 0}
-      </div>
-    </div>
-    <div className="bg-blue-50 p-2 flex flex-col justify-between h-[35%]">
-      <h3 className="font-bold text-slate-800 text-xs leading-tight line-clamp-2 text-center">{product.name}</h3>
-      <div className="bg-blue-600 text-white text-center text-xs font-bold py-1 rounded w-full mt-1">
-        ${product.price ? product.price.toFixed(2) : '0.00'}
-      </div>
-    </div>
-  </div>
-);
-
 export default POS;
-
-

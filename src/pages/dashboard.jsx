@@ -148,124 +148,137 @@ const Dashboard = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full">
-        <h1 className="text-2xl font-bold mb-6">Dashboard Overview</h1>
-
-        {/* Stats Grid - Fixed heights to prevent jumping */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-md min-h-[120px]">
-            <h3 className="text-lg font-semibold text-gray-600 mb-2">Today's Revenue</h3>
-            <p className="text-2xl font-bold text-green-600">
-              ${typeof stats.todayRevenue === 'number' ? stats.todayRevenue.toFixed(2) : '0.00'}
-            </p>
+    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
+      {/* Header Card */}
+      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="heading-1 text-white mb-1">Dashboard Overview</h1>
+            <p className="text-sm text-blue-100">Live performance of your restaurant, orders and tables.</p>
           </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-md min-h-[120px]">
-            <h3 className="text-lg font-semibold text-gray-600 mb-2">Today's Orders</h3>
-            <p className="text-2xl font-bold text-blue-600">{stats.todayOrders || 0}</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-md min-h-[120px]">
-            <h3 className="text-lg font-semibold text-gray-600 mb-2">Monthly Revenue</h3>
-            <p className="text-2xl font-bold text-purple-600">
-              ${typeof stats.monthlyRevenue === 'number' ? stats.monthlyRevenue.toFixed(2) : '0.00'}
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-md min-h-[120px]">
-            <h3 className="text-lg font-semibold text-gray-600 mb-2">Available Tables</h3>
-            <p className="text-2xl font-bold text-orange-600">{stats.availableTables || 0}</p>
+          <div className="hidden sm:flex flex-col items-end text-sm text-blue-100">
+            <span className="font-semibold">Today</span>
+            <span>{formatDate(new Date().toISOString())}</span>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity - Fixed height container */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {Array.isArray(recentActivity) && recentActivity.length > 0 ? (
-                recentActivity.map((activity) => (
-                  <div key={activity._id || activity.orderNumber} className="flex justify-between items-center border-b pb-3 last:border-b-0">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">{activity.orderNumber}</p>
-                      <p className="text-sm text-gray-600">{activity.customerName || 'Walk-in Customer'}</p>
-                      <p className="text-xs text-gray-500">
-                        {activity.createdAt ? `${formatDate(activity.createdAt)} at ${formatTime(activity.createdAt)}` : 'Recently'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-gray-900">
-                        ${typeof activity.finalTotal === 'number' ? activity.finalTotal.toFixed(2) : '0.00'}
-                      </p>
-                      <span className={`text-xs px-2 py-1 rounded-full ${activity.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          activity.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
-                            activity.status === 'pending' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                        }`}>
-                        {activity.status || 'unknown'}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No recent activity</p>
-                  <p className="text-sm text-gray-400 mt-1">Orders will appear here</p>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card min-h-[140px] flex flex-col justify-between border-l-4 border-l-emerald-500">
+          <h3 className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Today's Revenue</h3>
+          <p className="text-3xl font-bold text-emerald-600">
+            ${typeof stats.todayRevenue === 'number' ? stats.todayRevenue.toFixed(2) : '0.00'}
+          </p>
+        </div>
 
-          {/* Top Products - Fixed height container */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Top Products</h2>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {Array.isArray(topProducts) && topProducts.length > 0 ? (
-                topProducts.map((product) => (
-                  <div key={product._id || product.name} className="flex justify-between items-center border-b pb-3 last:border-b-0">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">{product.name}</p>
-                      <p className="text-sm text-gray-600">Sold: {product.totalQuantity || 0}</p>
-                    </div>
-                    <p className="font-medium text-green-600">
-                      ${typeof product.totalRevenue === 'number' ? product.totalRevenue.toFixed(2) : '0.00'}
+        <div className="card min-h-[140px] flex flex-col justify-between border-l-4 border-l-blue-500">
+          <h3 className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Today's Orders</h3>
+          <p className="text-3xl font-bold text-blue-600">{stats.todayOrders || 0}</p>
+        </div>
+
+        <div className="card min-h-[140px] flex flex-col justify-between border-l-4 border-l-purple-500">
+          <h3 className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Monthly Revenue</h3>
+          <p className="text-3xl font-bold text-purple-600">
+            ${typeof stats.monthlyRevenue === 'number' ? stats.monthlyRevenue.toFixed(2) : '0.00'}
+          </p>
+        </div>
+
+        <div className="card min-h-[140px] flex flex-col justify-between border-l-4 border-l-orange-500">
+          <h3 className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Available Tables</h3>
+          <p className="text-3xl font-bold text-orange-600">{stats.availableTables || 0}</p>
+        </div>
+      </div>
+
+      {/* Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+        {/* Recent Activity */}
+        <div className="card flex flex-col h-full">
+          <h2 className="heading-3 mb-4 text-slate-800">Recent Orders</h2>
+          <div className="flex-1 overflow-y-auto space-y-3">
+            {Array.isArray(recentActivity) && recentActivity.length > 0 ? (
+              recentActivity.map((activity) => (
+                <div key={activity._id || activity.orderNumber} className="flex justify-between items-center border-b pb-3 last:border-b-0">
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800">{activity.orderNumber}</p>
+                    <p className="text-sm text-gray-600">{activity.customerName || 'Walk-in Customer'}</p>
+                    <p className="text-xs text-gray-500">
+                      {activity.createdAt ? `${formatDate(activity.createdAt)} at ${formatTime(activity.createdAt)}` : 'Recently'}
                     </p>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No product data available</p>
-                  <p className="text-sm text-gray-400 mt-1">Sales data will appear here</p>
+                  <div className="text-right">
+                    <p className="font-medium text-gray-900">
+                      ${typeof activity.finalTotal === 'number' ? activity.finalTotal.toFixed(2) : '0.00'}
+                    </p>
+                    <span className={`text-xs px-2 py-1 rounded-full ${activity.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      activity.status === 'preparing' ? 'bg-yellow-100 text-yellow-800' :
+                        activity.status === 'pending' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                      }`}>
+                      {activity.status || 'unknown'}
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No recent activity</p>
+                <p className="text-sm text-gray-400 mt-1">Orders will appear here</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Manual Refresh Button - Only show if user wants to refresh */}
-        <div className="mt-6 flex justify-between items-center">
-          <div className="text-sm text-gray-500">
-            Last updated: {formatTime(lastUpdated)}
+        {/* Top Products */}
+        <div className="card flex flex-col h-full">
+          <h2 className="heading-3 mb-4 text-slate-800">Top Products</h2>
+          <div className="flex-1 overflow-y-auto space-y-3">
+            {Array.isArray(topProducts) && topProducts.length > 0 ? (
+              topProducts.map((product) => (
+                <div key={product._id || product.name} className="flex justify-between items-center border-b pb-3 last:border-b-0">
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800">{product.name}</p>
+                    <p className="text-sm text-gray-600">Sold: {product.totalQuantity || 0}</p>
+                  </div>
+                  <p className="font-medium text-green-600">
+                    ${typeof product.totalRevenue === 'number' ? product.totalRevenue.toFixed(2) : '0.00'}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No product data available</p>
+                <p className="text-sm text-gray-400 mt-1">Sales data will appear here</p>
+              </div>
+            )}
           </div>
-          <button
-            onClick={fetchDashboardData}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Refreshing...' : 'Refresh Data'}
-          </button>
         </div>
-
-        {/* Error message - Fixed position to prevent layout shift */}
-        {error && (
-          <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded-md fixed bottom-4 right-4 max-w-md">
-            <p className="text-yellow-800 text-sm">
-              <strong>Note:</strong> {error}
-            </p>
-          </div>
-        )}
       </div>
+
+
+
+      {/* Footer Actions */}
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-slate-500">
+          Last updated: {formatTime(lastUpdated)}
+        </div>
+        <button
+          onClick={fetchDashboardData}
+          disabled={loading}
+          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors font-medium shadow-sm"
+        >
+          {loading ? 'Refreshing...' : 'Refresh Data'}
+        </button>
+      </div>
+
+      {/* Error message */}
+      {error && (
+        <div className="fixed bottom-6 right-6 max-w-md p-4 bg-yellow-50 border border-yellow-200 rounded-lg shadow-lg z-50">
+          <p className="text-yellow-800 text-sm">
+            <strong>Note:</strong> {error}
+          </p>
+        </div>
+      )}
     </div>
   );
 };

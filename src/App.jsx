@@ -27,7 +27,7 @@ function App() {
     <Router>
       <AuthProvider>
         <SocketProvider>
-          <div className="App">
+          <div className="App h-full w-full">
             <Routes>
               <Route path="/login" element={<Login />} />
 
@@ -41,7 +41,15 @@ function App() {
 
                 <Route path="dashboard" element={<Dashboard />} />
 
-                {/* POS Route moved out to be full screen */}
+                {/* POS inside global layout for unified shell */}
+                <Route
+                  path="pos"
+                  element={
+                    <ProtectedRoute requiredRoles={['admin', 'manager', 'cashier', 'waiter']}>
+                      <POS />
+                    </ProtectedRoute>
+                  }
+                />
 
                 <Route path="kitchen" element={
                   <ProtectedRoute requiredRoles={['admin', 'chef']}>
@@ -116,13 +124,6 @@ function App() {
                   </ProtectedRoute>
                 } />
               </Route>
-
-              {/* Full Screen POS Route - Waiters need access too */}
-              <Route path="/pos" element={
-                <ProtectedRoute requiredRoles={['admin', 'manager', 'cashier', 'waiter']}>
-                  <POS />
-                </ProtectedRoute>
-              } />
 
               {/* Customer Display Route (Second Screen) */}
               <Route path="/customer-view" element={<CustomerDisplay />} />

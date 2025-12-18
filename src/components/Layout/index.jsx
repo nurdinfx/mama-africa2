@@ -1,32 +1,40 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext'; // Fixed import path
 import Sidebar from './Sidebar';
 import Header from './Header';
 
 const Layout = () => {
   const { user } = useAuth();
+  const location = useLocation();
+
+  // Sidebar drawer open/close (all breakpoints)
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+
+  // Auto-close mobile sidebar when route changes
+  React.useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   if (!user) {
     return <Outlet />;
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      {/* Mobile Sidebar Overlay */}
+    <div className="app-shell overflow-hidden h-screen">
+      {/* Sidebar Overlay */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+          className="fixed inset-0 bg-black/40 z-40"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      <div className="flex-1 flex flex-col md:ml-64 w-full transition-all duration-300 min-h-screen">
+      <div className="app-main flex-1 min-w-0 overflow-hidden">
         <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-        <main className="flex-1 w-full max-w-full">
+        <main className="flex-1 w-full overflow-hidden h-[calc(100vh-4rem)]">
           <Outlet />
         </main>
       </div>

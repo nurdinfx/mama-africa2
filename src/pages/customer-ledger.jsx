@@ -289,64 +289,75 @@ const CustomerLedger = () => {
   const balanceStatus = getBalanceStatus();
 
   return (
-    <div className="space-y-4 sm:space-y-6" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
-      <div className="text-center">
-        <h1 className="text-3xl font-bold">Hudi POS System</h1>
-        <p className="text-gray-600">Customer Ledger</p>
+    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
+      {/* Header */}
+      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="heading-1 text-white mb-2">Customer Ledger</h1>
+            <p className="text-blue-100">Manage customer accounts and transactions</p>
+          </div>
+          <div className="text-sm text-blue-100">
+            {new Date().toLocaleString()}
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
-          <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">Select Customer</label>
-          <select
-            value={selectedCustomerId}
-            onChange={(e) => { setSelectedCustomerId(e.target.value); setPage(1); }}
-            className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 w-full sm:min-w-[200px] md:min-w-[250px] text-sm"
-            disabled={loading}
-          >
-            {customers.length === 0 ? (
-              <option value="">No customers available</option>
-            ) : (
-              customers.map(c => (
-                <option key={c._id} value={c._id}>
-                  {c.name} {c.phone ? `(${c.phone})` : ''}
-                </option>
-              ))
-            )}
-          </select>
+      {/* Controls */}
+      <div className="card">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
+            <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">Select Customer</label>
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => { setSelectedCustomerId(e.target.value); setPage(1); }}
+              className="border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 w-full sm:min-w-[200px] md:min-w-[250px] text-sm"
+              disabled={loading}
+            >
+              {customers.length === 0 ? (
+                <option value="">No customers available</option>
+              ) : (
+                customers.map(c => (
+                  <option key={c._id} value={c._id}>
+                    {c.name} {c.phone ? `(${c.phone})` : ''}
+                  </option>
+                ))
+              )}
+            </select>
 
-          <button
-            onClick={() => setShowAddCustomer(true)}
-            className="flex items-center gap-1 sm:gap-2 bg-blue-600 hover:bg-blue-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded transition-colors text-xs sm:text-sm whitespace-nowrap"
-            disabled={loading}
-          >
-            <UserPlus size={16} />
-            <span className="hidden sm:inline">Add Customer</span>
-            <span className="sm:hidden">Add</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setShowAddCustomer(true)}
+              className="flex items-center gap-1 sm:gap-2 bg-blue-600 hover:bg-blue-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded transition-colors text-xs sm:text-sm whitespace-nowrap"
+              disabled={loading}
+            >
+              <UserPlus size={16} />
+              <span className="hidden sm:inline">Add Customer</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          <button
-            onClick={loadLedger}
-            disabled={loading}
-            className="flex items-center gap-1 sm:gap-2 bg-gray-600 hover:bg-gray-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded transition-colors text-xs sm:text-sm"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+            <button
+              onClick={loadLedger}
+              disabled={loading}
+              className="flex items-center gap-1 sm:gap-2 bg-gray-600 hover:bg-gray-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded transition-colors text-xs sm:text-sm"
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
 
-          <button
-            onClick={handlePrintLedger}
-            className="flex items-center gap-1 sm:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded transition-colors text-xs sm:text-sm whitespace-nowrap"
-          >
-            <Printer size={16} />
-            <span className="hidden sm:inline">Print Invoice</span>
-            <span className="sm:hidden">Print</span>
-          </button>
+            <button
+              onClick={handlePrintLedger}
+              className="flex items-center gap-1 sm:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded transition-colors text-xs sm:text-sm whitespace-nowrap"
+            >
+              <Printer size={16} />
+              <span className="hidden sm:inline">Print Invoice</span>
+              <span className="sm:hidden">Print</span>
+            </button>
 
-          <div className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
-            {new Date().toLocaleString()}
+            <div className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
+              {new Date().toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
@@ -428,7 +439,7 @@ const CustomerLedger = () => {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard title="Total Debit" value={`$${formatAmount(summary.debit)}`} color="#2563eb" icon={ArrowUp} />
         <SummaryCard title="Total Credit" value={`$${formatAmount(summary.credit)}`} color="#16a34a" icon={ArrowDown} />
         <SummaryCard
@@ -446,7 +457,7 @@ const CustomerLedger = () => {
       </div>
 
       {/* Add Transaction Section */}
-      <div className="bg-white rounded-lg shadow border p-2 sm:p-4">
+      <div className="card">
         <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Add Transaction</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <div>
@@ -498,7 +509,7 @@ const CustomerLedger = () => {
       </div>
 
       {/* Transactions Table */}
-      <div className="bg-white rounded-lg shadow border">
+      <div className="card p-0 overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="overflow-x-auto" style={{ maxWidth: '100%' }}>
           <table className="min-w-full" style={{ tableLayout: 'auto', width: '100%' }}>
             <thead className="bg-gray-50">

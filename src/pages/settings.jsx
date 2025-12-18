@@ -219,13 +219,14 @@ const Settings = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
+      {/* Header */}
+      <div className="card flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">System Settings</h1>
-          <p className="text-gray-600">Configure your restaurant system preferences</p>
+          <h1 className="heading-1 text-slate-900 mb-1">System Settings</h1>
+          <p className="text-muted">Configure your restaurant system preferences</p>
           {error && (
-            <div className="mt-2 p-2 bg-red-100 text-red-700 rounded-md text-sm">
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
               {error}
             </div>
           )}
@@ -233,30 +234,30 @@ const Settings = () => {
         <button
           onClick={handleSaveSettings}
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium"
+          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium shadow-sm transition-colors"
         >
           {loading ? 'Saving...' : 'Save Settings'}
         </button>
       </div>
 
       {saved && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+        <div className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg shadow-sm">
           Settings saved successfully!
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow">
+      <div className="card p-0 overflow-hidden flex-1 flex flex-col">
         {/* Tab Navigation */}
-        <div className="border-b">
-          <nav className="flex -mb-px">
+        <div className="border-b border-slate-200">
+          <nav className="flex -mb-px px-6">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center px-6 py-4 font-medium text-sm border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
                 <span className="mr-2 text-lg">{tab.icon}</span>
@@ -267,7 +268,7 @@ const Settings = () => {
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'general' && (
             <GeneralSettings
               settings={settings}
@@ -310,7 +311,7 @@ const Settings = () => {
 const GeneralSettings = ({ settings, onChange }) => {
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-gray-900">Restaurant Information</h2>
+      <h2 className="heading-2 text-slate-900">Restaurant Information</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>

@@ -205,29 +205,29 @@ const Purchase = () => {
 
   if (ActiveComponent) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-blue-600 text-white p-4 shadow-lg">
+      <div className="page-content flex flex-col gap-6 h-full overflow-auto">
+        <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => setActiveView(null)}
-                className="text-white hover:bg-blue-700 p-2 rounded-lg transition-colors flex items-center space-x-2"
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors flex items-center gap-2"
               >
                 <span>←</span>
                 <span>Back to Purchase</span>
               </button>
               <div>
-                <h1 className="text-2xl font-bold">
+                <h1 className="heading-1 text-white">
                   {purchaseModules.find(m => m.id === activeView)?.title}
                 </h1>
-                <div className="text-sm text-blue-200 opacity-90">
+                <div className="text-sm text-blue-100">
                   {formatDateTime(currentTime)}
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-4">
               <div className="text-right">
-                <div className="text-sm text-blue-200">Live Time</div>
+                <div className="text-sm text-blue-100">Live Time</div>
                 <div className="font-semibold">
                   {currentTime.toLocaleTimeString('en-US', {
                     hour: '2-digit',
@@ -243,7 +243,7 @@ const Purchase = () => {
             </div>
           </div>
         </div>
-        <div className="p-4">
+        <div className="flex-1 overflow-auto">
           {renderActiveComponent()}
         </div>
       </div>
@@ -251,89 +251,86 @@ const Purchase = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 shadow-lg">
-        <div className="w-full max-w-full px-4">
-          <h1 className="text-3xl font-bold">Purchase Management</h1>
+      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+        <h1 className="heading-1 text-white">Purchase Management</h1>
+      </div>
+
+      {/* Error Alert */}
+      {backendStatus === 'error' && (
+        <div className="card bg-red-50 border border-red-200">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <div>
+              <h3 className="font-medium text-red-800">Backend Connection Issue</h3>
+              <p className="text-sm text-red-600">Unable to connect to purchase server. Please check if backend is running.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Total Purchase Amount */}
+        <div className="card border-l-4 border-l-blue-500">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-2xl font-bold text-blue-600">
+                {formatCurrency(purchaseStats.totalAmount)}
+              </div>
+              <div className="text-sm text-slate-600 mt-1">Total Purchase Amount</div>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <DollarSign className="w-6 h-6 text-blue-500" />
+            </div>
+          </div>
+          <div className="text-sm text-slate-500">
+            <span className="font-medium">Today:</span> {formatCurrency(purchaseStats.todayAmount)}
+          </div>
+        </div>
+
+        {/* Total Purchases */}
+        <div className="card border-l-4 border-l-green-500">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-2xl font-bold text-green-600">
+                {purchaseStats.totalPurchases}
+              </div>
+              <div className="text-sm text-slate-600 mt-1">Total Purchases</div>
+            </div>
+            <div className="p-3 bg-green-50 rounded-lg">
+              <Package className="w-6 h-6 text-green-500" />
+            </div>
+          </div>
+          <div className="text-sm text-slate-500">
+            <span className="font-medium">Today:</span> {purchaseStats.todayPurchases} purchases
+          </div>
+        </div>
+
+        {/* Active Suppliers */}
+        <div className="card border-l-4 border-l-purple-500">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-2xl font-bold text-purple-600">
+                {purchaseStats.activeSuppliers}
+              </div>
+              <div className="text-sm text-slate-600 mt-1">Active Suppliers</div>
+            </div>
+            <div className="p-3 bg-purple-50 rounded-lg">
+              <Building className="w-6 h-6 text-purple-500" />
+            </div>
+          </div>
+          <div className="text-sm text-slate-500">
+            <span className="font-medium">Pending Orders:</span> {purchaseStats.pendingOrders}
+          </div>
         </div>
       </div>
 
-      {/* Purchase Statistics */}
-      <div className="p-6">
-        <div className="w-full max-w-full px-4">
-          {backendStatus === 'error' && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-red-500" />
-                <div>
-                  <h3 className="font-medium text-red-800">Backend Connection Issue</h3>
-                  <p className="text-sm text-red-600">Unable to connect to purchase server. Please check if backend is running.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {/* Total Purchase Amount */}
-            <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(purchaseStats.totalAmount)}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Purchase Amount</div>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-blue-500" />
-                </div>
-              </div>
-              <div className="mt-4 text-sm text-gray-500">
-                <span className="font-medium">Today:</span> {formatCurrency(purchaseStats.todayAmount)}
-              </div>
-            </div>
-
-            {/* Total Purchases */}
-            <div className="bg-white rounded-xl shadow-sm border border-green-100 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-green-600">
-                    {purchaseStats.totalPurchases}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Purchases</div>
-                </div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <Package className="w-6 h-6 text-green-500" />
-                </div>
-              </div>
-              <div className="mt-4 text-sm text-gray-500">
-                <span className="font-medium">Today:</span> {purchaseStats.todayPurchases} purchases
-              </div>
-            </div>
-
-            {/* Active Suppliers */}
-            <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold text-purple-600">
-                    {purchaseStats.activeSuppliers}
-                  </div>
-                  <div className="text-sm text-gray-600">Active Suppliers</div>
-                </div>
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <Building className="w-6 h-6 text-purple-500" />
-                </div>
-              </div>
-              <div className="mt-4 text-sm text-gray-500">
-                <span className="font-medium">Pending Orders:</span> {purchaseStats.pendingOrders}
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content - Button Grid */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Purchase Modules</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      {/* Main Content - Button Grid */}
+      <div className="flex-1 overflow-auto">
+        <h2 className="heading-2 text-slate-800 mb-4">Purchase Modules</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
               {purchaseModules.map((module) => (
                 <button
                   key={module.id}
@@ -404,8 +401,6 @@ const Purchase = () => {
               </div>
             </div>
           </div>
-        </div>
-      </div>
     </div>
   );
 };

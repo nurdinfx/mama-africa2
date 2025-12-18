@@ -1893,32 +1893,32 @@ const Reports = () => {
     const selectedReport = reportTypes.find(r => r.id === activeReport);
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="page-content flex flex-col gap-6 h-full overflow-auto">
         {/* Header */}
-        <div className="bg-blue-600 text-white p-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
               <button
                 onClick={handleBack}
-                className="text-white hover:bg-blue-700 p-2 rounded-lg transition-colors"
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
               >
                 ← Back to Reports
               </button>
               <div>
-                <h1 className="text-2xl font-bold">{selectedReport?.title}</h1>
-                <p className="text-blue-100 text-sm">{selectedReport?.description}</p>
+                <h1 className="heading-1 text-white">{selectedReport?.title}</h1>
+                <p className="text-blue-100 text-sm mt-1">{selectedReport?.description}</p>
               </div>
             </div>
-            <div className="flex space-x-2">
+            <div className="flex gap-2">
               <button
                 onClick={() => window.print()}
-                className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50"
+                className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 shadow-sm transition-colors"
               >
                 Print
               </button>
               <button
                 onClick={exportReport}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700"
+                className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 shadow-sm transition-colors"
               >
                 Export CSV
               </button>
@@ -1926,51 +1926,51 @@ const Reports = () => {
           </div>
         </div>
 
-        <div className="p-4">
-          {/* Summary Cards */}
-          {renderSummaryCards()}
+        {/* Summary Cards */}
+        {renderSummaryCards()}
 
-          {/* Filters */}
-          {renderFilters()}
+        {/* Filters */}
+        {renderFilters()}
 
-          {/* Report Content */}
-          {loading ? (
-            <div className="bg-white p-12 rounded-lg shadow text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-4 text-gray-500">Loading report data...</p>
-            </div>
-          ) : (
-            renderReportContent()
-          )}
-        </div>
+        {/* Report Content */}
+        {loading ? (
+          <div className="card text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="mt-4 text-gray-500">Loading report data...</p>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 overflow-auto">
+            {renderReportContent()}
+          </div>
+        )}
       </div>
     );
   }
 
   // Main grid view
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 shadow-lg">
-        <h1 className="text-2xl font-bold">Reports Dashboard</h1>
-        <p className="text-blue-100 mt-1">View and export financial and operational reports</p>
+      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
+        <div>
+          <h1 className="heading-1 text-white mb-2">Reports Dashboard</h1>
+          <p className="text-blue-100">View and export financial and operational reports</p>
+        </div>
       </div>
 
       {/* Main Content */}
-      <div className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {reportTypes.map((report) => (
-            <button
-              key={report.id}
-              onClick={() => handleReportClick(report)}
-              className="bg-white hover:bg-blue-50 text-gray-800 rounded-lg p-6 text-center transition-all duration-200 transform hover:scale-105 hover:shadow-xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-blue-300"
-            >
-              <div className="text-4xl mb-3">{report.icon}</div>
-              <div className="font-semibold text-lg mb-2">{report.title}</div>
-              <p className="text-sm text-gray-600">{report.description}</p>
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 overflow-y-auto">
+        {reportTypes.map((report) => (
+          <button
+            key={report.id}
+            onClick={() => handleReportClick(report)}
+            className="card text-center hover:shadow-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300"
+          >
+            <div className="text-4xl mb-3">{report.icon}</div>
+            <div className="heading-3 mb-2">{report.title}</div>
+            <p className="text-sm text-muted">{report.description}</p>
+          </button>
+        ))}
       </div>
     </div>
   );
