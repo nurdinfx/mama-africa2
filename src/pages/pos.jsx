@@ -205,7 +205,7 @@ const POS = () => {
 
       const response = await realApi.createOrder(orderData);
       if (response.success) {
-        printReceipt(response.data);
+        printReceipt(response.data, cart);
         clearCart();
       }
     } catch (error) {
@@ -214,144 +214,281 @@ const POS = () => {
     }
   };
 
-  const printReceipt = (order) => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
+  const printReceipt = (order, cartItems = null) => {
+    const printWindow = window.open('', '_blank', 'width=58mm,height=auto');
     if (!printWindow) return;
+    
+    // Create a map of product names from cart items if available
+    const productNameMap = {};
+    if (cartItems && Array.isArray(cartItems)) {
+      cartItems.forEach(item => {
+        if (item._id && item.name) {
+          productNameMap[item._id] = item.name;
+        }
+        // Also map by product ID if different from _id
+        if (item.product && typeof item.product === 'string' && item.name) {
+          productNameMap[item.product] = item.name;
+        }
+      });
+    }
+    
+    // Also create a map from the products array if available
+    if (products && Array.isArray(products)) {
+      products.forEach(product => {
+        if (product._id && product.name) {
+          productNameMap[product._id] = product.name;
+        }
+      });
+    }
 
-    const formattedDate = new Date().toLocaleString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
+    const formattedDate = new Date().toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    }) + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
     // Calculate totals for receipt
-    const currency = 'USD'; // Assuming USD as per image
-    const localCurrencyRatio = 0; // From image: Total L/Currency: 0
-
     const receiptContent = `
+      <!DOCTYPE html>
       <html>
         <head>
           <title>Receipt</title>
+          <meta name="viewport" content="width=58mm, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
           <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap');
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            @page { 
+              size: 58mm auto; 
+              margin: 0mm; 
+            }
             
             body { 
-              font-family: 'Roboto Mono', monospace; 
+              font-family: 'Courier New', Courier, monospace; 
               margin: 0;
-              padding: 10px;
+              padding: 0;
+              padding-bottom: 0;
+              margin-bottom: 0;
               color: #000;
-              font-size: 12px;
-              width: 300px; /* Thermal printer width approx */
+              font-size: 11px;
+              width: 58mm;
+              max-width: 58mm;
+              line-height: 1.2;
             }
-            .header { text-align: center; margin-bottom: 15px; }
+            
+            .header { 
+              text-align: center; 
+              margin-bottom: 3px; 
+              padding: 0;
+            }
+            
             .restaurant-name { 
-              font-size: 16px; 
+              font-size: 13px; 
               font-weight: bold; 
-              margin: 0 0 5px 0;
+              margin: 0;
+              line-height: 1.2;
+              padding: 0;
             }
-            .sub-header {
-              font-size: 10px;
-              margin-bottom: 5px;
-            }
+            
             .phones {
-              font-size: 10px;
+              font-size: 9px;
               border-bottom: 1px dashed #000;
-              padding-bottom: 10px;
-              margin-bottom: 10px;
+              padding-bottom: 3px;
+              margin-bottom: 3px;
+              margin-top: 3px;
+              line-height: 1.3;
             }
+            
             .info-row {
               display: flex;
-              margin-bottom: 2px;
+              margin-bottom: 1px;
+              font-size: 10px;
+              line-height: 1.3;
             }
+            
             .info-label {
-              width: 80px;
+              min-width: 70px;
             }
+            
             .dashed-line {
               border-top: 1px dashed #000;
-              margin: 10px 0;
+              margin: 3px 0;
             }
+            
             .items-table {
               width: 100%;
               border-collapse: collapse;
-              margin: 5px 0;
+              margin: 3px 0;
+              font-size: 10px;
             }
+            
             .items-table th {
               text-align: left;
-              border-bottom: 1px dashed #000;
-              padding-bottom: 5px;
+              padding-bottom: 2px;
               font-weight: normal;
               font-size: 10px;
             }
+            
             .items-table td {
-              padding: 5px 0;
+              padding: 2px 0;
               vertical-align: top;
+              font-size: 10px;
             }
-            .col-item { width: 50%; }
-            .col-no { width: 10%; text-align: center; }
-            .col-price { width: 20%; text-align: right; }
-            .col-total { width: 20%; text-align: right; }
+            
+            .col-item { 
+              width: 50%; 
+              word-wrap: break-word;
+            }
+            
+            .col-no { 
+              width: 12%; 
+              text-align: center; 
+            }
+            
+            .col-price { 
+              width: 18%; 
+              text-align: right; 
+            }
+            
+            .col-total { 
+              width: 20%; 
+              text-align: right; 
+            }
             
             .totals {
-              margin-top: 10px;
+              margin-top: 3px;
               border-top: 1px dashed #000;
-              padding-top: 5px;
+              padding-top: 3px;
+              font-size: 10px;
             }
+            
             .total-row {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 3px;
+              margin-bottom: 1px;
+              font-size: 10px;
             }
+            
             .grand-total {
               font-weight: bold;
-              font-size: 14px;
-              margin-top: 5px;
+              font-size: 11px;
+              margin-top: 3px;
               border-top: 1px dashed #000;
-              padding-top: 5px;
+              padding-top: 3px;
             }
+            
             .qr-container {
               display: flex;
               justify-content: center;
-              margin: 20px 0;
+              margin: 8px 0 0 0;
+              padding: 0;
             }
+            
+            #qrcode {
+              display: inline-block;
+            }
+            
+            #qrcode canvas,
+            #qrcode img {
+              max-width: 100%;
+              height: auto;
+            }
+            
             .footer {
               text-align: center;
               font-size: 10px;
-              margin-top: 10px;
+              margin-top: 3px;
+              margin-bottom: 0;
+              padding-bottom: 0;
             }
+            
             .powered-by {
               font-size: 9px;
-              color: #555;
-              margin-top: 5px;
+              color: #000;
+              margin-top: 2px;
+              margin-bottom: 0;
+              padding-bottom: 0;
+            }
+            
+            body > *:last-child {
+              margin-bottom: 0 !important;
+              padding-bottom: 0 !important;
+            }
+            
+            @media print {
+              body {
+                width: 58mm !important;
+                max-width: 58mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
+              }
+              
+              @page {
+                size: 58mm auto;
+                margin: 0mm;
+                margin-bottom: 0mm !important;
+                width: 58mm;
+              }
+              
+              * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              
+              html, body {
+                width: 58mm !important;
+                max-width: 58mm !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
+              }
+              
+              .footer, .powered-by, .qr-container {
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+              }
+              
+              body > *:last-child {
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+              }
+              
+              html {
+                height: auto !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
+              }
             }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1 class="restaurant-name">Mamma Africa<br>Restaurant</h1>
+            <div class="restaurant-name">Mamma Africa<br>Restaurant</div>
             <div class="phones">
               ZAAD: 515735 - SAHAL: 523080<br>
-              E-DAHAB: 742298 - MyCash: 931539
+              E-DAHAB:742298 - MyCash:931539
             </div>
           </div>
           
           <div class="info-row">
             <span class="info-label">Receipt Number:</span>
-            <span>${order.orderNumber || '11291'}</span>
+            <span>${order.orderNumber || '11517'}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Served By:</span>
-            <span>${user?.name || 'A'}</span>
+            <span class="info-label">Served By :</span>
+            <span>${user?.name || 'bilal'}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Customer:</span>
+            <span class="info-label">Customer :</span>
             <span>${selectedCustomer ? customers.find(c => c._id === selectedCustomer)?.name : 'Walking Customer'}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Date:</span>
+            <span class="info-label">Date :</span>
             <span>${formattedDate}</span>
           </div>
 
@@ -360,41 +497,54 @@ const POS = () => {
           <table class="items-table">
             <thead>
               <tr>
-                <th class="col-item">Item</th>
+                <th class="col-item">Item.</th>
                 <th class="col-no">No.</th>
-                <th class="col-price">Price</th>
+                <th class="col-price">Price.</th>
                 <th class="col-total">Total</th>
               </tr>
             </thead>
             <tbody>
-              ${order.items.map((item, idx) => `
+              ${order.items.map((item, idx) => {
+                // Try multiple ways to get the product name
+                let itemName = item.name || 
+                              item.product?.name || 
+                              item.product?.product?.name ||
+                              (item.product && typeof item.product === 'string' ? productNameMap[item.product] : null) ||
+                              (item.product?._id ? productNameMap[item.product._id] : null) ||
+                              (item._id ? productNameMap[item._id] : null) ||
+                              (item.productId ? productNameMap[item.productId] : null) ||
+                              'Item';
+                const itemPrice = item.price || item.product?.price || 0;
+                const itemQuantity = item.quantity || 1;
+                return `
                 <tr>
-                  <td class="col-item">${idx + 1}. ${item.name}</td>
-                  <td class="col-no">${item.quantity}</td>
-                  <td class="col-price">${item.price.toFixed(2)}</td>
-                  <td class="col-total">${(item.price * item.quantity).toFixed(2)}</td>
+                  <td class="col-item">${itemName}</td>
+                  <td class="col-no">${itemQuantity}</td>
+                  <td class="col-price">${itemPrice.toFixed(1)}</td>
+                  <td class="col-total">${(itemPrice * itemQuantity).toFixed(1)}</td>
                 </tr>
-              `).join('')}
+              `;
+              }).join('')}
             </tbody>
           </table>
 
           <div class="totals">
             <div class="total-row">
               <span>Vat @ ${vatPercentage}%</span>
-              <span>${order.tax.toFixed(2)}</span>
+              <span>${order.tax.toFixed(1)}</span>
             </div>
             <div class="total-row">
               <span>Paid Amount</span>
-              <span>${order.subtotal.toFixed(2)}</span>
+              <span>0</span>
             </div>
             <div class="dashed-line"></div>
             <div class="total-row grand-total">
               <span>Total :</span>
-              <span>${order.finalTotal.toFixed(2)}</span>
+              <span>${order.finalTotal.toFixed(1)}</span>
             </div>
             <div class="total-row">
               <span>Total L/Currency :</span>
-              <span>${(order.finalTotal * 1).toFixed(0)}</span>
+              <span>0</span>
             </div>
           </div>
           
@@ -406,7 +556,7 @@ const POS = () => {
 
           <div class="footer">
             <div>Thank you for visiting us</div>
-            <div class="powered-by">Powered by Hyper-Soft</div>
+            <div class="powered-by">POWERED-BY HUDI POS</div>
           </div>
 
           <script>
@@ -420,10 +570,8 @@ const POS = () => {
                 correctLevel : QRCode.CorrectLevel.H
               });
               
-              // Auto print after QR generation
               setTimeout(() => {
                 window.print();
-                // window.close(); // Optional: close after print
               }, 500);
             }, 100);
           </script>

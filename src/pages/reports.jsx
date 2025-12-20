@@ -1,11 +1,12 @@
 // src/pages/Reports.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
 import { API_CONFIG } from '../config/api.config';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatDate, formatTime, formatCurrency } from '../utils/date';
 import { io } from 'socket.io-client';
+import { setCache, getCache } from '../services/offlineCache';
 
 const Reports = () => {
   const { user } = useAuth();
@@ -40,6 +41,7 @@ const Reports = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [socket, setSocket] = useState(null);
+  const [dataSource, setDataSource] = useState('fresh');
   const itemsPerPage = 10;
 
   const reportTypes = [
@@ -105,27 +107,60 @@ const Reports = () => {
 
   const loadInitialData = async () => {
     try {
-      // Load cashiers
-      const cashiersResponse = await realApi.getUsers({ role: 'cashier' });
-      if (cashiersResponse.success) {
-        setCashiers(realApi.extractData(cashiersResponse) || []);
+      // Try to load from cache first
+      const cachedCashiers = getCache('reports_cashiers');
+      const cachedProducts = getCache('reports_products');
+      const cachedSettings = getCache('reports_settings');
+      const cacheTime = getCache('reports_cache_time', 0);
+      const now = Date.now();
+      
+      // Use cache if less than 10 minutes old
+      if (cachedCashiers && (now - cacheTime) < 10 * 60 * 1000) {
+        setCashiers(cachedCashiers);
       }
-
-      // Load products for filters
-      const productsResponse = await realApi.getProducts();
-      if (productsResponse.success) {
-        const productsData = realApi.extractData(productsResponse) || [];
-        setProducts(productsData);
-
-        // Extract unique categories
-        const uniqueCategories = [...new Set(productsData.map(p => p.category).filter(Boolean))];
+      if (cachedProducts && (now - cacheTime) < 10 * 60 * 1000) {
+        setProducts(cachedProducts);
+        const uniqueCategories = [...new Set(cachedProducts.map(p => p.category).filter(Boolean))];
         setCategories(uniqueCategories);
       }
+      if (cachedSettings && (now - cacheTime) < 10 * 60 * 1000) {
+        setSettings(cachedSettings);
+      }
+      
+      // Load fresh data in background
+      try {
+        // Load cashiers
+        const cashiersResponse = await realApi.getUsers({ role: 'cashier' });
+        if (cashiersResponse.success) {
+          const cashiersData = realApi.extractData(cashiersResponse) || [];
+          setCashiers(cashiersData);
+          setCache('reports_cashiers', cashiersData);
+        }
 
-      // Load settings for currency formatting
-      const settingsResponse = await realApi.getSettings();
-      if (settingsResponse.success) {
-        setSettings(realApi.extractData(settingsResponse));
+        // Load products for filters
+        const productsResponse = await realApi.getProducts();
+        if (productsResponse.success) {
+          const productsData = realApi.extractData(productsResponse) || [];
+          setProducts(productsData);
+          setCache('reports_products', productsData);
+
+          // Extract unique categories
+          const uniqueCategories = [...new Set(productsData.map(p => p.category).filter(Boolean))];
+          setCategories(uniqueCategories);
+        }
+
+        // Load settings for currency formatting
+        const settingsResponse = await realApi.getSettings();
+        if (settingsResponse.success) {
+          const settingsData = realApi.extractData(settingsResponse);
+          setSettings(settingsData);
+          setCache('reports_settings', settingsData);
+        }
+        
+        setCache('reports_cache_time', now);
+      } catch (error) {
+        console.error('Failed to load fresh data, using cache:', error);
+        // If fresh load fails, we already have cache data displayed
       }
     } catch (error) {
       console.error('Failed to load initial data:', error);
@@ -140,6 +175,10 @@ const Reports = () => {
       const startDate = new Date(filters.startDate);
       const endDate = new Date(filters.endDate);
       endDate.setHours(23, 59, 59, 999); // End of day
+
+      // Define cache key and timestamp before using them
+      const cacheKey = `report_${reportId}_${filters.startDate}_${filters.endDate}_${filters.paymentMethod}_${filters.cashier}`;
+      const now = Date.now();
 
       switch (reportId) {
         case 'payment':
@@ -191,59 +230,98 @@ const Reports = () => {
           data = { type: 'coming-soon', message: 'This report is coming soon' };
       }
 
+      // Cache the data
+      setCache(cacheKey, data);
+      setCache(`${cacheKey}_time`, now);
+      
       setReportData(data);
+      setDataSource('fresh');
       updateSummary(data, reportId);
     } catch (error) {
       console.error('Failed to load report:', error);
-      setReportData({ type: 'error', message: 'Failed to load report data' });
+      
+      // Try to use cached data as fallback
+      const cacheKey = `report_${reportId}_${filters.startDate}_${filters.endDate}_${filters.paymentMethod}_${filters.cashier}`;
+      const cachedData = getCache(cacheKey);
+      
+      if (cachedData) {
+        console.log('Using cached data as fallback');
+        setReportData(cachedData);
+        setDataSource('cache');
+        updateSummary(cachedData, reportId);
+      } else {
+        setReportData({ type: 'error', message: 'Failed to load report data. Please check your internet connection.' });
+        setDataSource('error');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const loadPaymentReport = async (startDate, endDate) => {
-    const response = await realApi.getOrders({
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      paymentStatus: 'paid'
-    });
-
-    if (!response.success) throw new Error('Failed to load payment data');
-
-    let orders = realApi.extractData(response) || [];
-
-    // Apply filters
-    orders = applyOrderFilters(orders);
-
-    // Group by payment method
-    const paymentGroups = {};
-    const mobilePaymentMethods = ['zaad', 'sahal', 'edahab', 'mycash', 'mobile'];
-
-    orders.forEach(order => {
-      const method = (order.paymentMethod || 'cash').toLowerCase();
-      if (!paymentGroups[method]) {
-        paymentGroups[method] = {
-          method: method,
-          count: 0,
-          amount: 0,
-          vat: 0,
-          orders: []
-        };
+    try {
+      let orders = [];
+      const cacheKey = `orders_${startDate.toISOString()}_${endDate.toISOString()}`;
+      const cachedOrders = getCache(cacheKey);
+      
+      // Try cache first
+      if (cachedOrders) {
+        orders = Array.isArray(cachedOrders) ? cachedOrders : [];
+        orders = orders.filter(o => (o.paymentStatus || '').toLowerCase() === 'paid');
       }
-      paymentGroups[method].count++;
-      paymentGroups[method].amount += order.finalTotal || order.totalAmount || 0;
-      paymentGroups[method].vat += order.taxAmount || 0;
-      paymentGroups[method].orders.push(order);
-    });
+      
+      // Load fresh data
+      const response = await realApi.getOrders({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        paymentStatus: 'paid'
+      });
 
-    return {
-      type: 'payment',
-      orders,
-      paymentGroups: Object.values(paymentGroups),
-      total: orders.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0),
-      count: orders.length,
-      vat: orders.reduce((sum, o) => sum + (o.taxAmount || 0), 0)
-    };
+      if (response.success) {
+        orders = realApi.extractData(response) || [];
+        // Cache orders
+        setCache(cacheKey, orders);
+        setCache(`${cacheKey}_time`, Date.now());
+      } else if (!orders.length) {
+        throw new Error('Failed to load payment data');
+      }
+
+      // Apply filters
+      orders = applyOrderFilters(orders);
+
+      // Group by payment method
+      const paymentGroups = {};
+      const mobilePaymentMethods = ['zaad', 'sahal', 'edahab', 'mycash', 'mobile'];
+
+      orders.forEach(order => {
+        const method = (order.paymentMethod || 'cash').toLowerCase();
+        if (!paymentGroups[method]) {
+          paymentGroups[method] = {
+            method: method,
+            count: 0,
+            amount: 0,
+            vat: 0,
+            orders: []
+          };
+        }
+        paymentGroups[method].count++;
+        paymentGroups[method].amount += order.finalTotal || order.totalAmount || 0;
+        paymentGroups[method].vat += order.taxAmount || 0;
+        paymentGroups[method].orders.push(order);
+      });
+
+      return {
+        type: 'payment',
+        orders,
+        paymentGroups: Object.values(paymentGroups),
+        total: orders.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0),
+        count: orders.length,
+        vat: orders.reduce((sum, o) => sum + (o.taxAmount || 0), 0)
+      };
+    } catch (error) {
+      console.error('Error loading payment report:', error);
+      throw error;
+    }
   };
 
   const loadMobilePaymentReport = async (startDate, endDate) => {
@@ -319,120 +397,173 @@ const Reports = () => {
   };
 
   const loadOrdersReport = async (startDate, endDate, salesOnly = false) => {
-    const response = await realApi.getOrders({
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      paymentStatus: salesOnly ? 'paid' : undefined
-    });
+    try {
+      const response = await realApi.getOrders({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        paymentStatus: salesOnly ? 'paid' : undefined
+      });
 
-    if (!response.success) throw new Error('Failed to load orders data');
+      let orders = [];
 
-    let orders = realApi.extractData(response) || [];
-    orders = applyOrderFilters(orders);
+      if (!response.success) {
+        // Try cache
+        const cacheKey = `orders_${startDate.toISOString()}_${endDate.toISOString()}`;
+        const cachedOrders = getCache(cacheKey);
+        if (cachedOrders) {
+          console.log('Using cached orders');
+          orders = Array.isArray(cachedOrders) ? cachedOrders : [];
+        } else {
+          throw new Error('Failed to load orders data');
+        }
+      } else {
+        orders = realApi.extractData(response) || [];
+        
+        // Cache orders
+        const cacheKey = `orders_${startDate.toISOString()}_${endDate.toISOString()}`;
+        setCache(cacheKey, orders);
+        setCache(`${cacheKey}_time`, Date.now());
+      }
+      
+      orders = applyOrderFilters(orders);
 
-    const paidOrders = orders.filter(o => (o.paymentStatus || '').toLowerCase() === 'paid');
-    const pendingOrders = orders.filter(o => (o.paymentStatus || '').toLowerCase() !== 'paid');
+      const paidOrders = orders.filter(o => (o.paymentStatus || '').toLowerCase() === 'paid');
+      const pendingOrders = orders.filter(o => (o.paymentStatus || '').toLowerCase() !== 'paid');
 
-    return {
-      type: 'orders',
-      orders,
-      paidOrders,
-      pendingOrders,
-      total: paidOrders.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0),
-      pending: pendingOrders.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0),
-      count: orders.length,
-      paidCount: paidOrders.length,
-      pendingCount: pendingOrders.length,
-      vat: orders.reduce((sum, o) => sum + (o.taxAmount || 0), 0)
-    };
+      return {
+        type: 'orders',
+        orders,
+        paidOrders,
+        pendingOrders,
+        total: paidOrders.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0),
+        pending: pendingOrders.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0),
+        count: orders.length,
+        paidCount: paidOrders.length,
+        pendingCount: pendingOrders.length,
+        vat: orders.reduce((sum, o) => sum + (o.taxAmount || 0), 0)
+      };
+    } catch (error) {
+      console.error('Error loading orders report:', error);
+      throw error;
+    }
   };
 
   const loadProductReport = async () => {
-    const ordersResponse = await realApi.getOrders({
-      startDate: filters.startDate,
-      endDate: filters.endDate,
-      paymentStatus: 'paid'
-    });
-
-    const productsResponse = await realApi.getProducts();
-
-    if (!ordersResponse.success || !productsResponse.success) {
-      throw new Error('Failed to load product report data');
-    }
-
-    const orders = realApi.extractData(ordersResponse) || [];
-    const productsData = realApi.extractData(productsResponse) || [];
-
-    // Calculate product sales
-    const productSales = {};
-    orders.forEach(order => {
-      if (order.items && Array.isArray(order.items)) {
-        order.items.forEach(item => {
-          const productId = item.product?._id || item.product;
-          if (!productSales[productId]) {
-            productSales[productId] = {
-              productId,
-              name: item.product?.name || item.name || 'Unknown',
-              category: item.product?.category || 'Uncategorized',
-              quantitySold: 0,
-              revenue: 0,
-              cost: 0,
-              profit: 0
-            };
-          }
-          productSales[productId].quantitySold += item.quantity || 1;
-          productSales[productId].revenue += (item.price || 0) * (item.quantity || 1);
+    try {
+      // Try cache first
+      const ordersCacheKey = `orders_${filters.startDate}_${filters.endDate}`;
+      const productsCacheKey = 'products_all';
+      const cachedOrders = getCache(ordersCacheKey);
+      const cachedProducts = getCache(productsCacheKey);
+      
+      let orders = [];
+      let productsData = [];
+      
+      // Load orders
+      if (cachedOrders) {
+        orders = cachedOrders.filter(o => (o.paymentStatus || '').toLowerCase() === 'paid');
+      } else {
+        const ordersResponse = await realApi.getOrders({
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          paymentStatus: 'paid'
         });
+        if (ordersResponse.success) {
+          orders = realApi.extractData(ordersResponse) || [];
+          setCache(ordersCacheKey, orders);
+        }
       }
-    });
+      
+      // Load products
+      if (cachedProducts) {
+        productsData = cachedProducts;
+      } else {
+        const productsResponse = await realApi.getProducts();
+        if (productsResponse.success) {
+          productsData = realApi.extractData(productsResponse) || [];
+          setCache(productsCacheKey, productsData);
+          setCache(`${productsCacheKey}_time`, Date.now());
+        }
+      }
 
-    // Merge with product data
-    const productsWithSales = productsData.map(product => {
-      const sales = productSales[product._id] || {
-        productId: product._id,
-        name: product.name,
-        category: product.category,
-        quantitySold: 0,
-        revenue: 0,
-        cost: 0,
-        profit: 0
-      };
+      if (!productsData.length) {
+        throw new Error('Failed to load product report data');
+      }
 
-      const cost = (product.costPrice || product.cost || 0) * sales.quantitySold;
-      const profit = sales.revenue - cost;
+      // Calculate product sales
+      const productSales = {};
+      orders.forEach(order => {
+        if (order.items && Array.isArray(order.items)) {
+          order.items.forEach(item => {
+            const productId = item.product?._id || item.product;
+            if (!productSales[productId]) {
+              productSales[productId] = {
+                productId,
+                name: item.product?.name || item.name || 'Unknown',
+                category: item.product?.category || 'Uncategorized',
+                quantitySold: 0,
+                revenue: 0,
+                cost: 0,
+                profit: 0
+              };
+            }
+            productSales[productId].quantitySold += item.quantity || 1;
+            productSales[productId].revenue += (item.price || 0) * (item.quantity || 1);
+          });
+        }
+      });
+
+      // Merge with product data
+      const productsWithSales = productsData.map(product => {
+        const sales = productSales[product._id] || {
+          productId: product._id,
+          name: product.name,
+          category: product.category,
+          quantitySold: 0,
+          revenue: 0,
+          cost: 0,
+          profit: 0
+        };
+
+        const cost = (product.costPrice || product.cost || 0) * sales.quantitySold;
+        const profit = sales.revenue - cost;
+
+        return {
+          ...product,
+          ...sales,
+          cost,
+          profit,
+          profitMargin: sales.revenue > 0 ? (profit / sales.revenue * 100) : 0,
+          stockStatus: getStockStatus(product.stock, product.lowStockThreshold || 10)
+        };
+      });
+
+      // Apply filters
+      let filteredProducts = productsWithSales;
+      if (filters.category) {
+        filteredProducts = filteredProducts.filter(p =>
+          p.category?.toLowerCase() === filters.category.toLowerCase()
+        );
+      }
+      if (filters.product) {
+        const searchTerm = filters.product.toLowerCase();
+        filteredProducts = filteredProducts.filter(p =>
+          p.name.toLowerCase().includes(searchTerm)
+        );
+      }
 
       return {
-        ...product,
-        ...sales,
-        cost,
-        profit,
-        profitMargin: sales.revenue > 0 ? (profit / sales.revenue * 100) : 0,
-        stockStatus: getStockStatus(product.stock, product.lowStockThreshold || 10)
+        type: 'product',
+        products: filteredProducts,
+        totalProducts: filteredProducts.length,
+        totalRevenue: filteredProducts.reduce((sum, p) => sum + p.revenue, 0),
+        totalProfit: filteredProducts.reduce((sum, p) => sum + p.profit, 0),
+        totalQuantitySold: filteredProducts.reduce((sum, p) => sum + p.quantitySold, 0)
       };
-    });
-
-    // Apply filters
-    let filteredProducts = productsWithSales;
-    if (filters.category) {
-      filteredProducts = filteredProducts.filter(p =>
-        p.category?.toLowerCase() === filters.category.toLowerCase()
-      );
+    } catch (error) {
+      console.error('Error loading product report:', error);
+      throw error;
     }
-    if (filters.product) {
-      const searchTerm = filters.product.toLowerCase();
-      filteredProducts = filteredProducts.filter(p =>
-        p.name.toLowerCase().includes(searchTerm)
-      );
-    }
-
-    return {
-      type: 'product',
-      products: filteredProducts,
-      totalProducts: filteredProducts.length,
-      totalRevenue: filteredProducts.reduce((sum, p) => sum + p.revenue, 0),
-      totalProfit: filteredProducts.reduce((sum, p) => sum + p.profit, 0),
-      totalQuantitySold: filteredProducts.reduce((sum, p) => sum + p.quantitySold, 0)
-    };
   };
 
   const loadDailySummaryReport = async (startDate, endDate) => {
@@ -1907,6 +2038,12 @@ const Reports = () => {
               <div>
                 <h1 className="heading-1 text-white">{selectedReport?.title}</h1>
                 <p className="text-blue-100 text-sm mt-1">{selectedReport?.description}</p>
+                {dataSource === 'cache' && (
+                  <p className="text-blue-200 text-xs mt-1">📦 Showing cached data (offline mode)</p>
+                )}
+                {dataSource === 'fresh' && (
+                  <p className="text-blue-200 text-xs mt-1">✅ Live data</p>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
@@ -1937,6 +2074,7 @@ const Reports = () => {
           <div className="card text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
             <p className="mt-4 text-gray-500">Loading report data...</p>
+            <p className="mt-2 text-xs text-gray-400">Using cached data if available</p>
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-auto">

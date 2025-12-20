@@ -571,15 +571,16 @@ const Orders = () => {
   };
 
   const printReceipt = (order, isUpdated = false) => {
-    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    const printWindow = window.open('', '_blank', 'width=58mm,height=auto');
+    if (!printWindow) return;
 
     const now = new Date();
-    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     const originalOrderDate = order.orderDate ? new Date(order.orderDate) : now;
-    const originalFormattedDate = `${String(originalOrderDate.getDate()).padStart(2, '0')}/${String(originalOrderDate.getMonth() + 1).padStart(2, '0')}/${originalOrderDate.getFullYear()}  ${String(originalOrderDate.getHours()).padStart(2, '0')}:${String(originalOrderDate.getMinutes()).padStart(2, '0')}`;
+    const originalFormattedDate = `${String(originalOrderDate.getDate()).padStart(2, '0')}/${String(originalOrderDate.getMonth() + 1).padStart(2, '0')}/${originalOrderDate.getFullYear()} ${String(originalOrderDate.getHours()).padStart(2, '0')}:${String(originalOrderDate.getMinutes()).padStart(2, '0')}`;
 
-    const restaurantName = restaurantSettings?.restaurantName || 'Manma Africa Restaurant';
+    const restaurantName = restaurantSettings?.restaurantName || 'Mamma Africa Restaurant';
     const receiptNumber = order.orderNumber || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     const serverName = order.cashier?.name || 'System';
 
@@ -592,7 +593,9 @@ const Orders = () => {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Restaurant Receipt</title>
+          <title>Receipt</title>
+          <meta name="viewport" content="width=58mm, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
             * {
               margin: 0;
@@ -600,282 +603,416 @@ const Orders = () => {
               box-sizing: border-box;
             }
             
-            body { 
-              font-family: 'Courier New', monospace; 
-              font-size: 12px; 
-              margin: 0; 
-              padding: 10px; 
-              width: 280px;
-              background: white;
-              color: black;
+            @page { 
+              size: 58mm auto; 
+              margin: 0mm; 
             }
             
-            .receipt { 
-              padding: 10px; 
-              background: white;
+            body { 
+              font-family: 'Courier New', Courier, monospace; 
+              margin: 0;
+              padding: 0;
+              padding-bottom: 0;
+              margin-bottom: 0;
+              color: #000;
+              font-size: 11px;
+              width: 58mm;
+              max-width: 58mm;
+              line-height: 1.2;
             }
             
             .header { 
               text-align: center; 
-              margin-bottom: 10px; 
-              border-bottom: 1px dashed #000; 
-              padding-bottom: 8px;
+              margin-bottom: 3px; 
+              padding: 0;
             }
             
             .restaurant-name { 
-              font-size: 14px; 
+              font-size: 13px; 
               font-weight: bold; 
-              margin-bottom: 5px;
-              text-transform: uppercase;
-            }
-            
-            .payment-methods {
-              text-align: center;
-              font-size: 10px;
-              margin-bottom: 8px;
+              margin: 0;
               line-height: 1.2;
+              padding: 0;
             }
             
-            .order-info { 
-              margin-bottom: 8px; 
+            .phones {
+              font-size: 9px;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 3px;
+              margin-bottom: 3px;
+              margin-top: 3px;
+              line-height: 1.3;
+            }
+            
+            .info-row {
+              display: flex;
+              margin-bottom: 1px;
               font-size: 10px;
               line-height: 1.3;
+            }
+            
+            .info-label {
+              min-width: 70px;
             }
             
             .updated-notice {
               text-align: center;
               font-weight: bold;
               color: #d97706;
-              margin: 5px 0;
+              margin: 3px 0;
               padding: 2px;
               border: 1px dashed #d97706;
+              font-size: 9px;
             }
             
-            .items { 
-              margin: 8px 0; 
-              border-bottom: 1px dashed #000; 
-              padding-bottom: 8px;
+            .dashed-line {
+              border-top: 1px dashed #000;
+              margin: 3px 0;
             }
             
-            .item-header {
-              display: flex;
-              justify-content: space-between;
-              font-weight: bold;
-              margin-bottom: 5px;
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 3px 0;
               font-size: 10px;
             }
             
-            .item-row { 
-              display: flex; 
-              justify-content: space-between; 
-              margin-bottom: 2px;
+            .items-table th {
+              text-align: left;
+              padding-bottom: 2px;
+              font-weight: normal;
               font-size: 10px;
             }
             
-            .item-name { 
-              flex: 3; 
-            }
-            
-            .item-quantity { 
-              flex: 1; 
-              text-align: center;
-            }
-            
-            .item-price { 
-              flex: 1; 
-              text-align: right;
-            }
-            
-            .totals { 
-              margin: 8px 0; 
-              border-bottom: 1px dashed #000; 
-              padding-bottom: 8px;
-            }
-            
-            .total-row { 
-              display: flex; 
-              justify-content: space-between; 
-              margin-bottom: 2px;
+            .items-table td {
+              padding: 2px 0;
+              vertical-align: top;
               font-size: 10px;
             }
             
-            .grand-total { 
-              font-weight: bold; 
-              font-size: 12px;
+            .col-item { 
+              width: 50%; 
+              word-wrap: break-word;
             }
             
-            .footer { 
+            .col-no { 
+              width: 12%; 
               text-align: center; 
-              margin-top: 10px; 
-              font-size: 10px;
-              line-height: 1.2;
             }
             
-            .thank-you { 
-              font-weight: bold; 
-              margin-top: 8px;
+            .col-price { 
+              width: 18%; 
+              text-align: right; 
+            }
+            
+            .col-total { 
+              width: 20%; 
+              text-align: right; 
             }
             
             .original-order {
-              margin-top: 10px;
-              padding-top: 8px;
-              border-top: 2px dashed #d97706;
-              font-size: 10px;
+              margin-top: 3px;
+              padding-top: 3px;
+              border-top: 1px dashed #d97706;
+              font-size: 9px;
             }
             
             .original-order-title {
               text-align: center;
               font-weight: bold;
               color: #d97706;
-              margin-bottom: 5px;
+              margin-bottom: 2px;
+              font-size: 9px;
             }
             
             .additional-items {
-              margin-top: 10px;
-              padding-top: 8px;
-              border-top: 2px dashed #000;
+              margin-top: 3px;
+              padding-top: 3px;
+              border-top: 1px dashed #000;
               font-size: 10px;
             }
             
             .additional-title {
               text-align: center;
               font-weight: bold;
-              margin-bottom: 5px;
+              margin-bottom: 2px;
+              font-size: 9px;
+            }
+            
+            .totals {
+              margin-top: 3px;
+              border-top: 1px dashed #000;
+              padding-top: 3px;
+              font-size: 10px;
+            }
+            
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 1px;
+              font-size: 10px;
+            }
+            
+            .grand-total {
+              font-weight: bold;
+              font-size: 11px;
+              margin-top: 3px;
+              border-top: 1px dashed #000;
+              padding-top: 3px;
+            }
+            
+            .qr-container {
+              display: flex;
+              justify-content: center;
+              margin: 8px 0 0 0;
+              padding: 0;
+            }
+            
+            #qrcode {
+              display: inline-block;
+            }
+            
+            #qrcode canvas,
+            #qrcode img {
+              max-width: 100%;
+              height: auto;
+            }
+            
+            .footer {
+              text-align: center;
+              font-size: 10px;
+              margin-top: 3px;
+              margin-bottom: 0;
+              padding-bottom: 0;
+            }
+            
+            .powered-by {
+              font-size: 9px;
+              color: #000;
+              margin-top: 2px;
+              margin-bottom: 0;
+              padding-bottom: 0;
+            }
+            
+            body > *:last-child {
+              margin-bottom: 0 !important;
+              padding-bottom: 0 !important;
             }
             
             @media print {
               body {
-                width: 80mm !important;
+                width: 58mm !important;
+                max-width: 58mm !important;
                 margin: 0 !important;
-                padding: 5px !important;
+                padding: 0 !important;
               }
               
               @page {
-                margin: 0;
-                size: 80mm auto;
+                size: 58mm auto;
+                margin: 0mm;
+                width: 58mm;
+              }
+              
+              * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              
+              html, body {
+                width: 58mm !important;
+                max-width: 58mm !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
+              }
+              
+              .footer, .powered-by, .qr-container {
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+              }
+              
+              body > *:last-child {
+                margin-bottom: 0 !important;
+                padding-bottom: 0 !important;
+              }
+              
+              html {
+                height: auto !important;
+                padding-bottom: 0 !important;
+                margin-bottom: 0 !important;
               }
             }
           </style>
         </head>
         <body>
-          <div class="receipt">
-            <div class="header">
-              <div class="restaurant-name">${restaurantName}</div>
-              <div class="payment-methods">
-                ZAAD: 515735 - SAHAL: 523080-<br>
-                E-DAHAB: 742298 - MYCash: 931539
-              </div>
-            </div>
-            
-            ${isUpdated ? `
-            <div class="updated-notice">
-              *** UPDATED ORDER ***
-            </div>
-            ` : ''}
-            
-            <div class="order-info">
-              <div><strong>Receipt Number:</strong> ${receiptNumber}</div>
-              <div><strong>Served By :</strong> ${serverName}</div>
-              <div><strong>Customer :</strong> ${order.customer?.name || order.customerName || 'Walking Customer'}</div>
-              <div><strong>Date :</strong> ${isUpdated ? originalFormattedDate : formattedDate}</div>
-              ${order.tableNumber ? `<div><strong>Table :</strong> ${order.tableNumber}</div>` : ''}
-              ${isUpdated ? `<div><strong>Updated :</strong> ${formattedDate}</div>` : ''}
-            </div>
-            
-            ${isUpdated ? `
-            <div class="original-order">
-              <div class="original-order-title">--- ORIGINAL ORDER ---</div>
-              <div class="item-header">
-                <div class="item-name">Item:</div>
-                <div class="item-quantity">No.</div>
-                <div class="item-price">Price:</div>
-                <div class="item-price">Total</div>
-              </div>
-              ${Array.isArray(selectedOrder?.items) ? selectedOrder.items.map(item => `
-                <div class="item-row">
-                  <div class="item-name">${item.product?.name || item.name || 'Item'}</div>
-                  <div class="item-quantity">${item.quantity}</div>
-                  <div class="item-price">${(item.price || 0).toFixed(1)}</div>
-                  <div class="item-price">${((item.price || 0) * (item.quantity || 1)).toFixed(1)}</div>
-                </div>
-              `).join('') : ''}
-            </div>
-            
-            <div class="additional-items">
-              <div class="additional-title">--- ADDITIONAL ITEMS ---</div>
-              <div class="item-header">
-                <div class="item-name">Item:</div>
-                <div class="item-quantity">No.</div>
-                <div class="item-price">Price:</div>
-                <div class="item-price">Total</div>
-              </div>
-              ${Array.isArray(order.items) ? order.items.filter(item =>
-      !selectedOrder?.items?.some(originalItem =>
-        originalItem._id === item._id ||
-        (originalItem.product?.name === item.product?.name && originalItem.price === item.price)
-      )
-    ).map(item => `
-                <div class="item-row">
-                  <div class="item-name">${item.product?.name || item.name || 'Item'}</div>
-                  <div class="item-quantity">${item.quantity}</div>
-                  <div class="item-price">${(item.price || 0).toFixed(1)}</div>
-                  <div class="item-price">${((item.price || 0) * (item.quantity || 1)).toFixed(1)}</div>
-                </div>
-              `).join('') : ''}
-            </div>
-            ` : `
-            <div class="items">
-              <div class="item-header">
-                <div class="item-name">Item:</div>
-                <div class="item-quantity">No.</div>
-                <div class="item-price">Price:</div>
-                <div class="item-price">Total</div>
-              </div>
-              ${Array.isArray(order.items) ? order.items.map(item => `
-                <div class="item-row">
-                  <div class="item-name">${item.product?.name || item.name || 'Item'}</div>
-                  <div class="item-quantity">${item.quantity}</div>
-                  <div class="item-price">${(item.price || 0).toFixed(1)}</div>
-                  <div class="item-price">${((item.price || 0) * (item.quantity || 1)).toFixed(1)}</div>
-                </div>
-              `).join('') : ''}
-            </div>
-            `}
-            
-            <div class="totals">
-              <div class="total-row">
-                <div>Vat @ 5 %</div>
-                <div>${taxAmount.toFixed(2)}</div>
-              </div>
-              <div class="total-row">
-                <div>Paid Amount</div>
-                <div>${order.paymentStatus === 'paid' ? finalTotal.toFixed(2) : '0.00'}</div>
-              </div>
-              <div class="total-row grand-total">
-                <div>Total :</div>
-                <div>${finalTotal.toFixed(2)}</div>
-              </div>
-              <div class="total-row">
-                <div>Total L/Currency :</div>
-                <div>0</div>
-              </div>
-            </div>
-            
-            ${order.paymentMethod ? `
-            <div class="order-info">
-              <div><strong>Payment Method:</strong> ${order.paymentMethod.toUpperCase()}</div>
-              ${order.paymentStatus === 'paid' ? `
-              <div><strong>Status:</strong> PAID</div>
-              ` : ''}
-            </div>
-            ` : ''}
-            
-            <div class="footer">
-              <div>Thank you for visiting us</div>
-              <div>powered by Hudi-somProjects</div>
-              ${isUpdated ? `<div style="color: #d97706; font-weight: bold; margin-top: 3px;">*** UPDATED RECEIPT ***</div>` : ''}
+          <div class="header">
+            <div class="restaurant-name">Mamma Africa<br>Restaurant</div>
+            <div class="phones">
+              ZAAD: 515735 - SAHAL: 523080<br>
+              E-DAHAB:742298 - MyCash:931539
             </div>
           </div>
+          
+          ${isUpdated ? `
+          <div class="updated-notice">
+            *** UPDATED ORDER ***
+          </div>
+          ` : ''}
+          
+          <div class="info-row">
+            <span class="info-label">Receipt Number:</span>
+            <span>${receiptNumber}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Served By :</span>
+            <span>${serverName}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Customer :</span>
+            <span>${order.customer?.name || order.customerName || 'Walking Customer'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Date :</span>
+            <span>${isUpdated ? originalFormattedDate : formattedDate}</span>
+          </div>
+          ${order.tableNumber ? `<div class="info-row"><span class="info-label">Table :</span><span>${order.tableNumber}</span></div>` : ''}
+          ${isUpdated ? `<div class="info-row"><span class="info-label">Updated :</span><span>${formattedDate}</span></div>` : ''}
+
+          <div class="dashed-line"></div>
+
+          ${isUpdated ? `
+          <div class="original-order">
+            <div class="original-order-title">--- ORIGINAL ORDER ---</div>
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th class="col-item">Item.</th>
+                  <th class="col-no">No.</th>
+                  <th class="col-price">Price.</th>
+                  <th class="col-total">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Array.isArray(selectedOrder?.items) ? selectedOrder.items.map(item => `
+                  <tr>
+                    <td class="col-item">${item.product?.name || item.name || 'Item'}</td>
+                    <td class="col-no">${item.quantity}</td>
+                    <td class="col-price">${(item.price || 0).toFixed(1)}</td>
+                    <td class="col-total">${((item.price || 0) * (item.quantity || 1)).toFixed(1)}</td>
+                  </tr>
+                `).join('') : ''}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="additional-items">
+            <div class="additional-title">--- ADDITIONAL ITEMS ---</div>
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th class="col-item">Item.</th>
+                  <th class="col-no">No.</th>
+                  <th class="col-price">Price.</th>
+                  <th class="col-total">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Array.isArray(order.items) ? order.items.filter(item =>
+                  !selectedOrder?.items?.some(originalItem =>
+                    originalItem._id === item._id ||
+                    (originalItem.product?.name === item.product?.name && originalItem.price === item.price)
+                  )
+                ).map(item => {
+                  const itemName = item.name || item.product?.name || item.product?.product?.name || 'Item';
+                  const itemPrice = item.price || item.product?.price || 0;
+                  const itemQuantity = item.quantity || 1;
+                  return `
+                  <tr>
+                    <td class="col-item">${itemName}</td>
+                    <td class="col-no">${itemQuantity}</td>
+                    <td class="col-price">${itemPrice.toFixed(1)}</td>
+                    <td class="col-total">${(itemPrice * itemQuantity).toFixed(1)}</td>
+                  </tr>
+                `;
+                }).join('') : ''}
+              </tbody>
+            </table>
+          </div>
+          ` : `
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th class="col-item">Item.</th>
+                <th class="col-no">No.</th>
+                <th class="col-price">Price.</th>
+                <th class="col-total">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Array.isArray(order.items) ? order.items.map(item => {
+                const itemName = item.name || item.product?.name || item.product?.product?.name || 'Item';
+                const itemPrice = item.price || item.product?.price || 0;
+                const itemQuantity = item.quantity || 1;
+                return `
+                <tr>
+                  <td class="col-item">${itemName}</td>
+                  <td class="col-no">${itemQuantity}</td>
+                  <td class="col-price">${itemPrice.toFixed(1)}</td>
+                  <td class="col-total">${(itemPrice * itemQuantity).toFixed(1)}</td>
+                </tr>
+              `;
+              }).join('') : ''}
+            </tbody>
+          </table>
+          `}
+
+          <div class="totals">
+            <div class="total-row">
+              <span>Vat @ 5%</span>
+              <span>${taxAmount.toFixed(1)}</span>
+            </div>
+            <div class="total-row">
+              <span>Paid Amount</span>
+              <span>${order.paymentStatus === 'paid' ? finalTotal.toFixed(1) : '0'}</span>
+            </div>
+            <div class="dashed-line"></div>
+            <div class="total-row grand-total">
+              <span>Total :</span>
+              <span>${finalTotal.toFixed(1)}</span>
+            </div>
+            <div class="total-row">
+              <span>Total L/Currency :</span>
+              <span>0</span>
+            </div>
+          </div>
+          
+          <div class="dashed-line"></div>
+
+          <div class="qr-container">
+            <div id="qrcode"></div>
+          </div>
+
+          <div class="footer">
+            <div>Thank you for visiting us</div>
+            <div class="powered-by">POWERED-BY HUDI POS</div>
+            ${isUpdated ? `<div style="color: #d97706; font-weight: bold; margin-top: 2px; font-size: 9px;">*** UPDATED RECEIPT ***</div>` : ''}
+          </div>
+
+          <script>
+            setTimeout(() => {
+              new QRCode(document.getElementById("qrcode"), {
+                text: "ORDER-${receiptNumber}",
+                width: 100,
+                height: 100,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+              });
+              
+              setTimeout(() => {
+                window.print();
+              }, 500);
+            }, 100);
+          </script>
         </body>
       </html>
     `;
@@ -887,7 +1024,7 @@ const Orders = () => {
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
-    }, 250);
+    }, 500);
   };
 
   const getStatusColor = (status) => {
@@ -994,7 +1131,7 @@ const Orders = () => {
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
 
   return (
-    <div className="page-content flex flex-col gap-6 h-full overflow-hidden">
+    <div className="page-content flex flex-col gap-6 h-full overflow-y-auto">
       {/* Header */}
       <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
         <div className="flex items-center justify-between flex-wrap gap-4">
