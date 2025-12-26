@@ -19,7 +19,7 @@ const Login = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       const timer = setTimeout(() => {
-        navigate('/dashboard', { replace: true });
+        navigate('/pos', { replace: true });
       }, 100);
       return () => clearTimeout(timer);
     }

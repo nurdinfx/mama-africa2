@@ -37,7 +37,7 @@ function App() {
                   <Layout />
                 </ProtectedRoute>
               }>
-                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route index element={<Navigate to="/pos" replace />} />
 
                 <Route path="dashboard" element={<Dashboard />} />
 
@@ -128,7 +128,7 @@ function App() {
               {/* Customer Display Route (Second Screen) */}
               <Route path="/customer-view" element={<CustomerDisplay />} />
 
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/pos" replace />} />
             </Routes>
           </div>
         </SocketProvider>

@@ -418,11 +418,20 @@ const Orders = () => {
     try {
       setSelectedOrder(order);
       // Ensure items have proper structure
-      const itemsWithIds = order.items.map((item, index) => ({
-        ...item,
-        _id: item._id || `item_${Date.now()}_${index}`,
-        product: item.product || { _id: `product_${index}`, name: item.name || 'Item' }
-      }));
+      const itemsWithIds = order.items.map((item, index) => {
+        // If product is missing but we have a name, keep the name
+        // but don't generate a fake ObjectId that will fail backend validation
+        let productData = item.product;
+        if (!productData) {
+          productData = { name: item.name || 'Item' };
+        }
+
+        return {
+          ...item,
+          _id: item._id || `item_${Date.now()}_${index}`,
+          product: productData
+        };
+      });
       setUpdateOrderItems(itemsWithIds);
       await loadAvailableProducts();
       setShowUpdateModal(true);
@@ -497,23 +506,34 @@ const Orders = () => {
       // Prepare update data
       const updateData = {
         items: updateOrderItems.map(item => {
-          const productId = item.product?._id || item.product;
-          if (!productId) {
-            console.warn('Item missing product ID:', item);
-            return {
-              product: `temp_${Date.now()}`,
-              quantity: item.quantity,
-              price: item.price,
-              notes: item.notes,
-              name: item.product?.name || item.name || 'Item'
-            };
+          // Extract product ID properly (handle both populated object and string ID)
+          let productId = null;
+          if (item.product && typeof item.product === 'object') {
+            productId = item.product._id;
+          } else if (typeof item.product === 'string') {
+            productId = item.product;
           }
+
+          // Only send if it looks like a valid MongoDB ObjectId (24 hex chars)
+          const isValidObjectId = productId && /^[0-9a-fA-F]{24}$/.test(productId);
+
+          if (!isValidObjectId) {
+            console.warn('Item missing valid product ID, attempt to find by name:', item);
+            // Try to find matching product by name from available products if ID is invalid
+            const itemName = item.product?.name || item.name;
+            const matchedProduct = availableProducts.find(p => p.name === itemName);
+            if (matchedProduct) {
+              productId = matchedProduct._id;
+              console.log('✅ Matched product by name:', itemName, 'ID:', productId);
+            }
+          }
+
           return {
             product: productId,
             quantity: item.quantity,
             price: item.price,
             notes: item.notes,
-            name: item.product?.name || item.name
+            name: item.product?.name || item.name || 'Item'
           };
         }),
         subtotal,
@@ -571,7 +591,7 @@ const Orders = () => {
   };
 
   const printReceipt = (order, isUpdated = false) => {
-    const printWindow = window.open('', '_blank', 'width=58mm,height=auto');
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
     if (!printWindow) return;
 
     const now = new Date();
@@ -582,7 +602,7 @@ const Orders = () => {
 
     const restaurantName = restaurantSettings?.restaurantName || 'Mamma Africa Restaurant';
     const receiptNumber = order.orderNumber || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const serverName = order.cashier?.name || 'System';
+    const serverName = order.cashier?.name || order.user?.name || 'System';
 
     // Calculate totals
     const subtotal = order.subtotal || order.totalAmount || 0;
@@ -594,9 +614,11 @@ const Orders = () => {
       <html>
         <head>
           <title>Receipt</title>
-          <meta name="viewport" content="width=58mm, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+            
             * {
               margin: 0;
               padding: 0;
@@ -604,241 +626,178 @@ const Orders = () => {
             }
             
             @page { 
-              size: 58mm auto; 
+              size: 80mm auto; 
               margin: 0mm; 
             }
             
             body { 
-              font-family: 'Courier New', Courier, monospace; 
-              margin: 0;
-              padding: 0;
-              padding-bottom: 0;
-              margin-bottom: 0;
+              font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              margin: 0 auto;
+              padding: 10px;
               color: #000;
-              font-size: 11px;
-              width: 58mm;
-              max-width: 58mm;
-              line-height: 1.2;
+              font-size: 14px;
+              width: 80mm;
+              max-width: 80mm;
+              line-height: 1.4;
+              -webkit-font-smoothing: antialiased;
             }
             
             .header { 
               text-align: center; 
-              margin-bottom: 3px; 
-              padding: 0;
+              margin-bottom: 15px; 
             }
             
             .restaurant-name { 
-              font-size: 13px; 
-              font-weight: bold; 
-              margin: 0;
+              font-size: 20px; 
+              font-weight: 700; 
+              margin: 0 0 5px 0;
               line-height: 1.2;
-              padding: 0;
+              text-transform: uppercase;
             }
             
             .phones {
-              font-size: 9px;
-              border-bottom: 1px dashed #000;
-              padding-bottom: 3px;
-              margin-bottom: 3px;
-              margin-top: 3px;
-              line-height: 1.3;
+              font-size: 12px;
+              border-bottom: 1.5px dashed #000;
+              padding-bottom: 8px;
+              margin-bottom: 10px;
+              line-height: 1.5;
+              font-weight: 500;
             }
             
+            .info-section {
+              margin-bottom: 10px;
+            }
+
             .info-row {
               display: flex;
-              margin-bottom: 1px;
-              font-size: 10px;
-              line-height: 1.3;
+              justify-content: space-between;
+              margin-bottom: 3px;
+              font-size: 13px;
+              line-height: 1.4;
             }
             
             .info-label {
-              min-width: 70px;
+              font-weight: 600;
+              color: #333;
+            }
+
+            .info-value {
+              text-align: right;
+              font-weight: 500;
             }
             
             .updated-notice {
               text-align: center;
-              font-weight: bold;
-              color: #d97706;
-              margin: 3px 0;
-              padding: 2px;
-              border: 1px dashed #d97706;
-              font-size: 9px;
+              font-weight: 700;
+              color: #C2410C;
+              margin: 8px 0;
+              padding: 5px;
+              border: 1.5px dashed #C2410C;
+              font-size: 12px;
+              text-transform: uppercase;
             }
             
             .dashed-line {
-              border-top: 1px dashed #000;
-              margin: 3px 0;
+              border-top: 1.5px dashed #000;
+              margin: 10px 0;
             }
             
             .items-table {
               width: 100%;
               border-collapse: collapse;
-              margin: 3px 0;
-              font-size: 10px;
+              margin: 10px 0;
             }
             
             .items-table th {
               text-align: left;
-              padding-bottom: 2px;
-              font-weight: normal;
-              font-size: 10px;
+              padding: 8px 0;
+              font-weight: 700;
+              font-size: 13px;
+              border-bottom: 1px solid #000;
+              text-transform: uppercase;
             }
             
             .items-table td {
-              padding: 2px 0;
+              padding: 8px 0;
               vertical-align: top;
-              font-size: 10px;
+              font-size: 14px;
+              border-bottom: 0.5px solid #eee;
             }
             
-            .col-item { 
-              width: 50%; 
-              word-wrap: break-word;
-            }
+            .col-item { width: 45%; font-weight: 500; }
+            .col-no { width: 10%; text-align: center; }
+            .col-price { width: 20%; text-align: right; }
+            .col-total { width: 25%; text-align: right; font-weight: 600; }
             
-            .col-no { 
-              width: 12%; 
-              text-align: center; 
-            }
-            
-            .col-price { 
-              width: 18%; 
-              text-align: right; 
-            }
-            
-            .col-total { 
-              width: 20%; 
-              text-align: right; 
-            }
-            
-            .original-order {
-              margin-top: 3px;
-              padding-top: 3px;
-              border-top: 1px dashed #d97706;
-              font-size: 9px;
-            }
-            
-            .original-order-title {
+            .section-title {
               text-align: center;
-              font-weight: bold;
-              color: #d97706;
-              margin-bottom: 2px;
-              font-size: 9px;
-            }
-            
-            .additional-items {
-              margin-top: 3px;
-              padding-top: 3px;
-              border-top: 1px dashed #000;
-              font-size: 10px;
-            }
-            
-            .additional-title {
-              text-align: center;
-              font-weight: bold;
-              margin-bottom: 2px;
-              font-size: 9px;
+              font-weight: 700;
+              color: #444;
+              margin: 15px 0 5px 0;
+              font-size: 12px;
+              text-transform: uppercase;
+              letter-spacing: 1px;
             }
             
             .totals {
-              margin-top: 3px;
-              border-top: 1px dashed #000;
-              padding-top: 3px;
-              font-size: 10px;
+              margin-top: 10px;
+              padding-top: 5px;
             }
             
             .total-row {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 1px;
-              font-size: 10px;
+              margin-bottom: 5px;
+              font-size: 14px;
             }
             
             .grand-total {
-              font-weight: bold;
-              font-size: 11px;
-              margin-top: 3px;
-              border-top: 1px dashed #000;
-              padding-top: 3px;
+              font-weight: 700;
+              font-size: 22px;
+              margin-top: 10px;
+              border-top: 1.5px dashed #000;
+              padding-top: 10px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
             }
             
             .qr-container {
               display: flex;
-              justify-content: center;
-              margin: 8px 0 0 0;
-              padding: 0;
+              flex-direction: column;
+              align-items: center;
+              margin: 20px 0 10px 0;
             }
             
             #qrcode {
-              display: inline-block;
-            }
-            
-            #qrcode canvas,
-            #qrcode img {
-              max-width: 100%;
-              height: auto;
+              padding: 5px;
+              background: white;
             }
             
             .footer {
               text-align: center;
-              font-size: 10px;
-              margin-top: 3px;
-              margin-bottom: 0;
-              padding-bottom: 0;
+              font-size: 13px;
+              margin-top: 10px;
+              font-weight: 500;
             }
             
             .powered-by {
-              font-size: 9px;
-              color: #000;
-              margin-top: 2px;
-              margin-bottom: 0;
-              padding-bottom: 0;
-            }
-            
-            body > *:last-child {
-              margin-bottom: 0 !important;
-              padding-bottom: 0 !important;
+              font-size: 11px;
+              color: #666;
+              margin-top: 5px;
+              font-weight: 600;
+              letter-spacing: 0.5px;
             }
             
             @media print {
               body {
-                width: 58mm !important;
-                max-width: 58mm !important;
-                margin: 0 !important;
-                padding: 0 !important;
+                width: 80mm !important;
+                margin: 0 auto !important;
+                padding: 10px !important;
               }
-              
               @page {
-                size: 58mm auto;
-                margin: 0mm;
-                width: 58mm;
-              }
-              
-              * {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              
-              html, body {
-                width: 58mm !important;
-                max-width: 58mm !important;
-                padding-bottom: 0 !important;
-                margin-bottom: 0 !important;
-              }
-              
-              .footer, .powered-by, .qr-container {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              body > *:last-child {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              html {
-                height: auto !important;
-                padding-bottom: 0 !important;
-                margin-bottom: 0 !important;
+                size: 80mm auto;
+                margin: 0;
               }
             }
           </style>
@@ -852,42 +811,37 @@ const Orders = () => {
             </div>
           </div>
           
-          ${isUpdated ? `
-          <div class="updated-notice">
-            *** UPDATED ORDER ***
-          </div>
-          ` : ''}
+          ${isUpdated ? `<div class="updated-notice">*** UPDATED ORDER ***</div>` : ''}
           
-          <div class="info-row">
-            <span class="info-label">Receipt Number:</span>
-            <span>${receiptNumber}</span>
+          <div class="info-section">
+            <div class="info-row">
+              <span class="info-label">Receipt No:</span>
+              <span class="info-value">#${receiptNumber}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Served By:</span>
+              <span class="info-value">${serverName}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Customer:</span>
+              <span class="info-value">${order.customer?.name || order.customerName || 'Walking Customer'}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Date:</span>
+              <span class="info-value">${isUpdated ? originalFormattedDate : formattedDate}</span>
+            </div>
+            ${order.tableNumber ? `<div class="info-row"><span class="info-label">Table:</span><span class="info-value">${order.tableNumber}</span></div>` : ''}
+            ${isUpdated ? `<div class="info-row"><span class="info-label">Updated:</span><span class="info-value">${formattedDate}</span></div>` : ''}
           </div>
-          <div class="info-row">
-            <span class="info-label">Served By :</span>
-            <span>${serverName}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Customer :</span>
-            <span>${order.customer?.name || order.customerName || 'Walking Customer'}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Date :</span>
-            <span>${isUpdated ? originalFormattedDate : formattedDate}</span>
-          </div>
-          ${order.tableNumber ? `<div class="info-row"><span class="info-label">Table :</span><span>${order.tableNumber}</span></div>` : ''}
-          ${isUpdated ? `<div class="info-row"><span class="info-label">Updated :</span><span>${formattedDate}</span></div>` : ''}
-
-          <div class="dashed-line"></div>
 
           ${isUpdated ? `
-          <div class="original-order">
-            <div class="original-order-title">--- ORIGINAL ORDER ---</div>
+            <div class="section-title">--- ORIGINAL ORDER ---</div>
             <table class="items-table">
               <thead>
                 <tr>
-                  <th class="col-item">Item.</th>
-                  <th class="col-no">No.</th>
-                  <th class="col-price">Price.</th>
+                  <th class="col-item">Item</th>
+                  <th class="col-no">Qty</th>
+                  <th class="col-price">Price</th>
                   <th class="col-total">Total</th>
                 </tr>
               </thead>
@@ -896,113 +850,107 @@ const Orders = () => {
                   <tr>
                     <td class="col-item">${item.product?.name || item.name || 'Item'}</td>
                     <td class="col-no">${item.quantity}</td>
-                    <td class="col-price">${(item.price || 0).toFixed(1)}</td>
-                    <td class="col-total">${((item.price || 0) * (item.quantity || 1)).toFixed(1)}</td>
+                    <td class="col-price">${(item.price || 0).toFixed(2)}</td>
+                    <td class="col-total">${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
                   </tr>
                 `).join('') : ''}
               </tbody>
             </table>
-          </div>
-          
-          <div class="additional-items">
-            <div class="additional-title">--- ADDITIONAL ITEMS ---</div>
+            
+            <div class="section-title">--- ADDITIONAL ITEMS ---</div>
             <table class="items-table">
               <thead>
                 <tr>
-                  <th class="col-item">Item.</th>
-                  <th class="col-no">No.</th>
-                  <th class="col-price">Price.</th>
+                  <th class="col-item">Item</th>
+                  <th class="col-no">Qty</th>
+                  <th class="col-price">Price</th>
                   <th class="col-total">Total</th>
                 </tr>
               </thead>
               <tbody>
                 ${Array.isArray(order.items) ? order.items.filter(item =>
-                  !selectedOrder?.items?.some(originalItem =>
-                    originalItem._id === item._id ||
-                    (originalItem.product?.name === item.product?.name && originalItem.price === item.price)
-                  )
-                ).map(item => {
-                  const itemName = item.name || item.product?.name || item.product?.product?.name || 'Item';
-                  const itemPrice = item.price || item.product?.price || 0;
-                  const itemQuantity = item.quantity || 1;
-                  return `
-                  <tr>
-                    <td class="col-item">${itemName}</td>
-                    <td class="col-no">${itemQuantity}</td>
-                    <td class="col-price">${itemPrice.toFixed(1)}</td>
-                    <td class="col-total">${(itemPrice * itemQuantity).toFixed(1)}</td>
-                  </tr>
-                `;
-                }).join('') : ''}
+      !selectedOrder?.items?.some(originalItem =>
+        originalItem._id === item._id ||
+        (originalItem.product?.name === item.product?.name && originalItem.price === item.price)
+      )
+    ).map(item => {
+      const itemName = item.name || item.product?.name || item.product?.product?.name || 'Item';
+      const itemPrice = item.price || item.product?.price || 0;
+      const itemQuantity = item.quantity || 1;
+      return `
+                    <tr>
+                      <td class="col-item">${itemName}</td>
+                      <td class="col-no">${itemQuantity}</td>
+                      <td class="col-price">${itemPrice.toFixed(2)}</td>
+                      <td class="col-total">${(itemPrice * itemQuantity).toFixed(2)}</td>
+                    </tr>
+                  `;
+    }).join('') : ''}
               </tbody>
             </table>
-          </div>
           ` : `
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th class="col-item">Item.</th>
-                <th class="col-no">No.</th>
-                <th class="col-price">Price.</th>
-                <th class="col-total">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${Array.isArray(order.items) ? order.items.map(item => {
-                const itemName = item.name || item.product?.name || item.product?.product?.name || 'Item';
-                const itemPrice = item.price || item.product?.price || 0;
-                const itemQuantity = item.quantity || 1;
-                return `
+            <table class="items-table">
+              <thead>
                 <tr>
-                  <td class="col-item">${itemName}</td>
-                  <td class="col-no">${itemQuantity}</td>
-                  <td class="col-price">${itemPrice.toFixed(1)}</td>
-                  <td class="col-total">${(itemPrice * itemQuantity).toFixed(1)}</td>
+                  <th class="col-item">Item</th>
+                  <th class="col-no">Qty</th>
+                  <th class="col-price">Price</th>
+                  <th class="col-total">Total</th>
                 </tr>
-              `;
-              }).join('') : ''}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${Array.isArray(order.items) ? order.items.map(item => {
+      const itemName = item.name || item.product?.name || item.product?.product?.name || 'Item';
+      const itemPrice = item.price || item.product?.price || 0;
+      const itemQuantity = item.quantity || 1;
+      return `
+                    <tr>
+                      <td class="col-item">${itemName}</td>
+                      <td class="col-no">${itemQuantity}</td>
+                      <td class="col-price">${itemPrice.toFixed(2)}</td>
+                      <td class="col-total">${(itemPrice * itemQuantity).toFixed(2)}</td>
+                    </tr>
+                  `;
+    }).join('') : ''}
+              </tbody>
+            </table>
           `}
 
           <div class="totals">
             <div class="total-row">
-              <span>Vat @ 5%</span>
-              <span>${taxAmount.toFixed(1)}</span>
+              <span class="info-label">Subtotal</span>
+              <span>$${subtotal.toFixed(2)}</span>
             </div>
             <div class="total-row">
-              <span>Paid Amount</span>
-              <span>${order.paymentStatus === 'paid' ? finalTotal.toFixed(1) : '0'}</span>
-            </div>
-            <div class="dashed-line"></div>
-            <div class="total-row grand-total">
-              <span>Total :</span>
-              <span>${finalTotal.toFixed(1)}</span>
+              <span class="info-label">VAT @ 5%</span>
+              <span>$${taxAmount.toFixed(2)}</span>
             </div>
             <div class="total-row">
-              <span>Total L/Currency :</span>
-              <span>0</span>
+              <span class="info-label">Paid Amount</span>
+              <span>$${order.paymentStatus === 'paid' ? finalTotal.toFixed(2) : '0.00'}</span>
+            </div>
+            <div class="grand-total">
+              <span>TOTAL</span>
+              <span>$${finalTotal.toFixed(2)}</span>
             </div>
           </div>
           
-          <div class="dashed-line"></div>
-
           <div class="qr-container">
             <div id="qrcode"></div>
           </div>
 
           <div class="footer">
-            <div>Thank you for visiting us</div>
-            <div class="powered-by">POWERED-BY HUDI POS</div>
-            ${isUpdated ? `<div style="color: #d97706; font-weight: bold; margin-top: 2px; font-size: 9px;">*** UPDATED RECEIPT ***</div>` : ''}
+            <div>Thank you for visiting us!</div>
+            <div class="powered-by">POWERED BY HUDI POS</div>
+            ${isUpdated ? `<div style="color: #C2410C; font-weight: 700; margin-top: 5px; font-size: 11px;">*** UPDATED RECEIPT ***</div>` : ''}
           </div>
 
           <script>
-            setTimeout(() => {
+            window.onload = function() {
               new QRCode(document.getElementById("qrcode"), {
                 text: "ORDER-${receiptNumber}",
-                width: 100,
-                height: 100,
+                width: 128,
+                height: 128,
                 colorDark : "#000000",
                 colorLight : "#ffffff",
                 correctLevel : QRCode.CorrectLevel.H
@@ -1010,8 +958,11 @@ const Orders = () => {
               
               setTimeout(() => {
                 window.print();
+                window.onafterprint = function() {
+                  window.close();
+                };
               }, 500);
-            }, 100);
+            };
           </script>
         </body>
       </html>
@@ -1020,11 +971,6 @@ const Orders = () => {
     printWindow.document.write(receiptContent);
     printWindow.document.close();
     printWindow.focus();
-
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
   };
 
   const getStatusColor = (status) => {
@@ -1131,7 +1077,7 @@ const Orders = () => {
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
 
   return (
-    <div className="page-content flex flex-col gap-6 h-full overflow-y-auto">
+    <div className="page-content flex flex-col gap-6">
       {/* Header */}
       <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -1165,7 +1111,7 @@ const Orders = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto flex flex-col gap-4 min-h-0">
+      <div className="flex flex-col gap-4">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="card border-l-4 border-l-blue-500">
@@ -1267,7 +1213,7 @@ const Orders = () => {
 
         {/* Orders Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto" style={{ maxWidth: '100%' }}>
+          <div className="overflow-x-auto overflow-y-auto" style={{ maxWidth: '100%', maxHeight: '600px' }}>
             <table className="min-w-full" style={{ tableLayout: 'auto', width: '100%' }}>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>

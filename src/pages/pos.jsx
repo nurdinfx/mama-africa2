@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
 import { API_CONFIG } from '../config/api.config';
+import { getCache, setCache } from '../services/offlineCache';
 import {
   Search,
   Plus,
@@ -21,24 +22,27 @@ import {
 
 const POS = () => {
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [tables, setTables] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [settings, setSettings] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [cart, setCart] = useState([]);
+
+  // Initialize state from cache for "Zero Wait" experience
+  const [products, setProducts] = useState(() => getCache('pos_products', []));
+  const [categories, setCategories] = useState(() => getCache('pos_categories', ['BREAKFAST & SNACKS', 'LUNCH', 'DINNER', 'DRINKS', 'OTHERS']));
+  const [tables, setTables] = useState(() => getCache('pos_tables', []));
+  const [customers, setCustomers] = useState(() => getCache('pos_customers', []));
+  const [settings, setSettings] = useState(() => getCache('pos_settings', null));
+
+  const [selectedCategory, setSelectedCategory] = useState(() => getCache('pos_selectedCategory', 'All'));
+  const [cart, setCart] = useState(() => getCache('pos_cart', []));
   const [loading, setLoading] = useState(false);
-  const [selectedTable, setSelectedTable] = useState(null);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [orderType, setOrderType] = useState('dine-in');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTable, setSelectedTable] = useState(() => getCache('pos_selectedTable', null));
+  const [selectedCustomer, setSelectedCustomer] = useState(() => getCache('pos_selectedCustomer', null));
+  const [orderType, setOrderType] = useState(() => getCache('pos_orderType', 'dine-in'));
+  const [paymentMethod, setPaymentMethod] = useState(() => getCache('pos_paymentMethod', 'cash'));
+  const [searchQuery, setSearchQuery] = useState(() => getCache('pos_searchQuery', ''));
 
   // Financial State
-  const [discount, setDiscount] = useState(0);
-  const [vatPercentage, setVatPercentage] = useState(5);
-  const [tipAmount, setTipAmount] = useState(0);
+  const [discount, setDiscount] = useState(() => getCache('pos_discount', 0));
+  const [vatPercentage, setVatPercentage] = useState(() => getCache('pos_vatPercentage', 5));
+  const [tipAmount, setTipAmount] = useState(() => getCache('pos_tipAmount', 0));
 
   const { user } = useAuth();
 
@@ -57,9 +61,25 @@ const POS = () => {
     loadSettings();
   }, []);
 
+  // Persist state changes to localStorage
+  useEffect(() => { setCache('pos_cart', cart); }, [cart]);
+  useEffect(() => { setCache('pos_searchQuery', searchQuery); }, [searchQuery]);
+  useEffect(() => { setCache('pos_selectedCategory', selectedCategory); }, [selectedCategory]);
+  useEffect(() => { setCache('pos_selectedTable', selectedTable); }, [selectedTable]);
+  useEffect(() => { setCache('pos_selectedCustomer', selectedCustomer); }, [selectedCustomer]);
+  useEffect(() => { setCache('pos_orderType', orderType); }, [orderType]);
+  useEffect(() => { setCache('pos_paymentMethod', paymentMethod); }, [paymentMethod]);
+  useEffect(() => { setCache('pos_discount', discount); }, [discount]);
+  useEffect(() => { setCache('pos_tipAmount', tipAmount); }, [tipAmount]);
+  useEffect(() => { setCache('pos_vatPercentage', vatPercentage); }, [vatPercentage]);
+
   /* Optimized Data Loading for "Soft and Quick" Feel */
   const loadPOSData = async () => {
-    setLoading(true);
+    // If we have cached data, don't show the initial loading spinner
+    // only show it if the products array is completely empty
+    if (products.length === 0) {
+      setLoading(true);
+    }
 
     // Load Products immediately
     realApi.getProducts()
@@ -67,6 +87,7 @@ const POS = () => {
         if (response.success) {
           const productsData = realApi.extractData(response) || [];
           setProducts(Array.isArray(productsData) ? productsData : []);
+          setCache('pos_products', productsData);
         }
       })
       .catch(err => console.error('Error loading products:', err))
@@ -77,7 +98,9 @@ const POS = () => {
       .then(response => {
         if (response.success) {
           const categoriesData = realApi.extractData(response) || [];
-          setCategories(['BREAKFAST & SNACKS', 'LUNCH', 'DINNER', 'DRINKS', 'OTHERS', ...categoriesData]);
+          const allCategories = ['BREAKFAST & SNACKS', 'LUNCH', 'DINNER', 'DRINKS', 'OTHERS', ...categoriesData];
+          setCategories(allCategories);
+          setCache('pos_categories', allCategories);
         }
       })
       .catch(() => setCategories(['BREAKFAST & SNACKS', 'LUNCH', 'DINNER', 'DRINKS', 'OTHERS']));
@@ -85,14 +108,22 @@ const POS = () => {
     // Load Tables (Background)
     realApi.getAvailableTables()
       .then(response => {
-        if (response.success) setTables(realApi.extractData(response) || []);
+        if (response.success) {
+          const tablesData = realApi.extractData(response) || [];
+          setTables(tablesData);
+          setCache('pos_tables', tablesData);
+        }
       })
       .catch(err => console.error('Error loading tables:', err));
 
     // Load Customers (Background)
     realApi.getCustomers()
       .then(response => {
-        if (response.success) setCustomers(realApi.extractData(response) || []);
+        if (response.success) {
+          const customersData = realApi.extractData(response) || [];
+          setCustomers(customersData);
+          setCache('pos_customers', customersData);
+        }
       })
       .catch(err => console.error('Error loading customers:', err));
   };
@@ -105,6 +136,7 @@ const POS = () => {
         if (settingsData) {
           setSettings(settingsData);
           setVatPercentage(settingsData.taxRate || 5);
+          setCache('pos_settings', settingsData);
         }
       }
     } catch (error) {
@@ -215,9 +247,9 @@ const POS = () => {
   };
 
   const printReceipt = (order, cartItems = null) => {
-    const printWindow = window.open('', '_blank', 'width=58mm,height=auto');
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
     if (!printWindow) return;
-    
+
     // Create a map of product names from cart items if available
     const productNameMap = {};
     if (cartItems && Array.isArray(cartItems)) {
@@ -231,7 +263,7 @@ const POS = () => {
         }
       });
     }
-    
+
     // Also create a map from the products array if available
     if (products && Array.isArray(products)) {
       products.forEach(product => {
@@ -241,10 +273,10 @@ const POS = () => {
       });
     }
 
-    const formattedDate = new Date().toLocaleDateString('en-GB', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
+    const formattedDate = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
     }) + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
     // Calculate totals for receipt
@@ -253,9 +285,11 @@ const POS = () => {
       <html>
         <head>
           <title>Receipt</title>
-          <meta name="viewport" content="width=58mm, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+            
             * {
               margin: 0;
               padding: 0;
@@ -263,205 +297,174 @@ const POS = () => {
             }
             
             @page { 
-              size: 58mm auto; 
+              size: 80mm auto; 
               margin: 0mm; 
             }
             
             body { 
-              font-family: 'Courier New', Courier, monospace; 
-              margin: 0;
-              padding: 0;
-              padding-bottom: 0;
-              margin-bottom: 0;
+              font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              margin: 0 auto;
+              padding: 10px;
               color: #000;
-              font-size: 11px;
-              width: 58mm;
-              max-width: 58mm;
-              line-height: 1.2;
+              font-size: 14px;
+              width: 80mm;
+              max-width: 80mm;
+              line-height: 1.4;
+              -webkit-font-smoothing: antialiased;
             }
             
             .header { 
               text-align: center; 
-              margin-bottom: 3px; 
+              margin-bottom: 15px; 
               padding: 0;
             }
             
             .restaurant-name { 
-              font-size: 13px; 
-              font-weight: bold; 
-              margin: 0;
+              font-size: 20px; 
+              font-weight: 700; 
+              margin: 0 0 5px 0;
               line-height: 1.2;
-              padding: 0;
+              text-transform: uppercase;
             }
             
             .phones {
-              font-size: 9px;
-              border-bottom: 1px dashed #000;
-              padding-bottom: 3px;
-              margin-bottom: 3px;
-              margin-top: 3px;
-              line-height: 1.3;
+              font-size: 12px;
+              border-bottom: 1.5px dashed #000;
+              padding-bottom: 8px;
+              margin-bottom: 10px;
+              line-height: 1.5;
+              font-weight: 500;
             }
             
+            .info-section {
+              margin-bottom: 10px;
+            }
+
             .info-row {
               display: flex;
-              margin-bottom: 1px;
-              font-size: 10px;
-              line-height: 1.3;
+              justify-content: space-between;
+              margin-bottom: 3px;
+              font-size: 13px;
+              line-height: 1.4;
             }
             
             .info-label {
-              min-width: 70px;
+              font-weight: 600;
+              color: #333;
+            }
+
+            .info-value {
+              text-align: right;
+              font-weight: 500;
             }
             
             .dashed-line {
-              border-top: 1px dashed #000;
-              margin: 3px 0;
+              border-top: 1.5px dashed #000;
+              margin: 10px 0;
             }
             
             .items-table {
               width: 100%;
               border-collapse: collapse;
-              margin: 3px 0;
-              font-size: 10px;
+              margin: 10px 0;
             }
             
             .items-table th {
               text-align: left;
-              padding-bottom: 2px;
-              font-weight: normal;
-              font-size: 10px;
+              padding: 8px 0;
+              font-weight: 700;
+              font-size: 13px;
+              border-bottom: 1px solid #000;
+              text-transform: uppercase;
             }
             
             .items-table td {
-              padding: 2px 0;
+              padding: 8px 0;
               vertical-align: top;
-              font-size: 10px;
+              font-size: 14px;
+              border-bottom: 0.5px solid #eee;
             }
             
             .col-item { 
-              width: 50%; 
-              word-wrap: break-word;
+              width: 45%; 
+              font-weight: 500;
             }
             
             .col-no { 
-              width: 12%; 
+              width: 10%; 
               text-align: center; 
             }
             
             .col-price { 
-              width: 18%; 
-              text-align: right; 
-            }
-            
-            .col-total { 
               width: 20%; 
               text-align: right; 
             }
             
+            .col-total { 
+              width: 25%; 
+              text-align: right; 
+              font-weight: 600;
+            }
+            
             .totals {
-              margin-top: 3px;
-              border-top: 1px dashed #000;
-              padding-top: 3px;
-              font-size: 10px;
+              margin-top: 10px;
+              padding-top: 5px;
             }
             
             .total-row {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 1px;
-              font-size: 10px;
+              margin-bottom: 5px;
+              font-size: 14px;
             }
             
             .grand-total {
-              font-weight: bold;
-              font-size: 11px;
-              margin-top: 3px;
-              border-top: 1px dashed #000;
-              padding-top: 3px;
+              font-weight: 700;
+              font-size: 22px;
+              margin-top: 10px;
+              border-top: 1.5px dashed #000;
+              padding-top: 10px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
             }
             
             .qr-container {
               display: flex;
-              justify-content: center;
-              margin: 8px 0 0 0;
-              padding: 0;
+              flex-direction: column;
+              align-items: center;
+              margin: 20px 0 10px 0;
             }
             
             #qrcode {
-              display: inline-block;
-            }
-            
-            #qrcode canvas,
-            #qrcode img {
-              max-width: 100%;
-              height: auto;
+              padding: 5px;
+              background: white;
             }
             
             .footer {
               text-align: center;
-              font-size: 10px;
-              margin-top: 3px;
-              margin-bottom: 0;
-              padding-bottom: 0;
+              font-size: 13px;
+              margin-top: 10px;
+              font-weight: 500;
             }
             
             .powered-by {
-              font-size: 9px;
-              color: #000;
-              margin-top: 2px;
-              margin-bottom: 0;
-              padding-bottom: 0;
+              font-size: 11px;
+              color: #666;
+              margin-top: 5px;
+              font-weight: 600;
+              letter-spacing: 0.5px;
             }
-            
-            body > *:last-child {
-              margin-bottom: 0 !important;
-              padding-bottom: 0 !important;
-            }
-            
+
             @media print {
               body {
-                width: 58mm !important;
-                max-width: 58mm !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                padding-bottom: 0 !important;
-                margin-bottom: 0 !important;
+                width: 80mm !important;
+                margin: 0 auto !important;
+                padding: 10px !important;
               }
-              
               @page {
-                size: 58mm auto;
-                margin: 0mm;
-                margin-bottom: 0mm !important;
-                width: 58mm;
-              }
-              
-              * {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              
-              html, body {
-                width: 58mm !important;
-                max-width: 58mm !important;
-                padding-bottom: 0 !important;
-                margin-bottom: 0 !important;
-              }
-              
-              .footer, .powered-by, .qr-container {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              body > *:last-child {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              html {
-                height: auto !important;
-                padding-bottom: 0 !important;
-                margin-bottom: 0 !important;
+                size: 80mm auto;
+                margin: 0;
               }
             }
           </style>
@@ -475,96 +478,92 @@ const POS = () => {
             </div>
           </div>
           
-          <div class="info-row">
-            <span class="info-label">Receipt Number:</span>
-            <span>${order.orderNumber || '11517'}</span>
+          <div class="info-section">
+            <div class="info-row">
+              <span class="info-label">Receipt No:</span>
+              <span class="info-value">#${order.orderNumber || '11517'}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Served By:</span>
+              <span class="info-value">${user?.name || 'bilal'}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Customer:</span>
+              <span class="info-value">${selectedCustomer ? customers.find(c => c._id === selectedCustomer)?.name : 'Walking Customer'}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Date:</span>
+              <span class="info-value">${formattedDate}</span>
+            </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">Served By :</span>
-            <span>${user?.name || 'bilal'}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Customer :</span>
-            <span>${selectedCustomer ? customers.find(c => c._id === selectedCustomer)?.name : 'Walking Customer'}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Date :</span>
-            <span>${formattedDate}</span>
-          </div>
-
-          <div class="dashed-line"></div>
 
           <table class="items-table">
             <thead>
               <tr>
-                <th class="col-item">Item.</th>
-                <th class="col-no">No.</th>
-                <th class="col-price">Price.</th>
+                <th class="col-item">Item</th>
+                <th class="col-no">Qty</th>
+                <th class="col-price">Price</th>
                 <th class="col-total">Total</th>
               </tr>
             </thead>
             <tbody>
               ${order.items.map((item, idx) => {
-                // Try multiple ways to get the product name
-                let itemName = item.name || 
-                              item.product?.name || 
-                              item.product?.product?.name ||
-                              (item.product && typeof item.product === 'string' ? productNameMap[item.product] : null) ||
-                              (item.product?._id ? productNameMap[item.product._id] : null) ||
-                              (item._id ? productNameMap[item._id] : null) ||
-                              (item.productId ? productNameMap[item.productId] : null) ||
-                              'Item';
-                const itemPrice = item.price || item.product?.price || 0;
-                const itemQuantity = item.quantity || 1;
-                return `
-                <tr>
-                  <td class="col-item">${itemName}</td>
-                  <td class="col-no">${itemQuantity}</td>
-                  <td class="col-price">${itemPrice.toFixed(1)}</td>
-                  <td class="col-total">${(itemPrice * itemQuantity).toFixed(1)}</td>
-                </tr>
-              `;
-              }).join('')}
+      let itemName = item.name ||
+        item.product?.name ||
+        item.product?.product?.name ||
+        (item.product && typeof item.product === 'string' ? productNameMap[item.product] : null) ||
+        (item.product?._id ? productNameMap[item.product._id] : null) ||
+        (item._id ? productNameMap[item._id] : null) ||
+        (item.productId ? productNameMap[item.productId] : null) ||
+        'Item';
+      const itemPrice = item.price || item.product?.price || 0;
+      const itemQuantity = item.quantity || 1;
+      return `
+                  <tr>
+                    <td class="col-item">${itemName}</td>
+                    <td class="col-no">${itemQuantity}</td>
+                    <td class="col-price">${itemPrice.toFixed(2)}</td>
+                    <td class="col-total">${(itemPrice * itemQuantity).toFixed(2)}</td>
+                  </tr>
+                `;
+    }).join('')}
             </tbody>
           </table>
 
           <div class="totals">
             <div class="total-row">
-              <span>Vat @ ${vatPercentage}%</span>
-              <span>${order.tax.toFixed(1)}</span>
+              <span class="info-label">Subtotal</span>
+              <span>$${(order.subtotal || order.totalAmount || (order.finalTotal - order.tax)).toFixed(2)}</span>
             </div>
             <div class="total-row">
-              <span>Paid Amount</span>
-              <span>0</span>
-            </div>
-            <div class="dashed-line"></div>
-            <div class="total-row grand-total">
-              <span>Total :</span>
-              <span>${order.finalTotal.toFixed(1)}</span>
+              <span class="info-label">VAT @ ${vatPercentage}%</span>
+              <span>$${order.tax.toFixed(2)}</span>
             </div>
             <div class="total-row">
-              <span>Total L/Currency :</span>
-              <span>0</span>
+              <span class="info-label">Paid Amount</span>
+              <span>$${order.finalTotal.toFixed(2)}</span>
+            </div>
+            <div class="grand-total">
+              <span>TOTAL</span>
+              <span>$${order.finalTotal.toFixed(2)}</span>
             </div>
           </div>
           
-          <div class="dashed-line"></div>
-
           <div class="qr-container">
             <div id="qrcode"></div>
           </div>
 
           <div class="footer">
-            <div>Thank you for visiting us</div>
-            <div class="powered-by">POWERED-BY HUDI POS</div>
+            <div>Thank you for visiting us!</div>
+            <div class="powered-by">POWERED BY HUDI POS</div>
           </div>
 
           <script>
-            setTimeout(() => {
+            window.onload = function() {
               new QRCode(document.getElementById("qrcode"), {
                 text: "ORDER-${order.orderNumber || Date.now()}",
-                width: 100,
-                height: 100,
+                width: 128,
+                height: 128,
                 colorDark : "#000000",
                 colorLight : "#ffffff",
                 correctLevel : QRCode.CorrectLevel.H
@@ -572,8 +571,12 @@ const POS = () => {
               
               setTimeout(() => {
                 window.print();
+                // Close window after printing starts to avoid clutter
+                window.onafterprint = function() {
+                  window.close();
+                };
               }, 500);
-            }, 100);
+            };
           </script>
         </body>
       </html>

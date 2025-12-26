@@ -680,6 +680,14 @@ export const dashboardAPI = {
     }
   },
 
+  getDailySales: async (period = 'today') => {
+    try {
+      return await api.get('/dashboard/revenue', { params: { period } });
+    } catch (error) {
+      return handleApiError(error, 'getDailySales');
+    }
+  },
+
   getTopProducts: async (limit = 5, period = 'month') => {
     try {
       return await api.get('/dashboard/top-products', { params: { limit, period } });
@@ -1106,6 +1114,7 @@ export const realApi = {
   // Dashboard
   getStats: dashboardAPI.getStats,
   getRevenueData: dashboardAPI.getRevenueData,
+  getDailySales: dashboardAPI.getDailySales,
   getTopProducts: dashboardAPI.getTopProducts,
   getRecentActivity: dashboardAPI.getRecentActivity,
 
