@@ -633,7 +633,7 @@ const Orders = () => {
     const originalFormattedDate = `${String(originalOrderDate.getDate()).padStart(2, '0')}/${String(originalOrderDate.getMonth() + 1).padStart(2, '0')}/${originalOrderDate.getFullYear()} ${String(originalOrderDate.getHours()).padStart(2, '0')}:${String(originalOrderDate.getMinutes()).padStart(2, '0')}`;
 
     const restaurantName = restaurantSettings?.restaurantName || 'Mamma Africa Restaurant';
-    const receiptNumber = order.orderNumber || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    const receiptNumber = (order.orderNumber || '').split('-').pop() || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     const serverName = order.cashier?.name || order.user?.name || 'System';
 
     // Calculate totals
@@ -1113,7 +1113,7 @@ const Orders = () => {
     const date = new Date(order.orderDate || order.createdAt);
     return (
       <div className="flex flex-col text-xs">
-        <span className="font-bold text-blue-900">#{order.orderNumber}</span>
+        <span className="font-bold text-blue-900">#{(order.orderNumber || '').split('-').pop()}</span>
         <span className="text-gray-500">{date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         <span className={`font-semibold ${order.status === 'pending' ? 'text-red-500' : 'text-green-600'}`}>
           {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
@@ -1348,7 +1348,7 @@ const Orders = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Order: {paymentOrder.orderNumber}
+                    Order: {(paymentOrder.orderNumber || '').split('-').pop()}
                   </label>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Customer: {paymentOrder.customer?.name || paymentOrder.customerName || 'Walk-in Customer'}
@@ -1474,7 +1474,7 @@ const OrderModal = ({ order, onClose, onPrint, onPayNow, onUpdateOrder, onUpdate
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-gray-900">
-              Order Details - {order.orderNumber}
+              Order Details - {(order.orderNumber || '').split('-').pop()}
             </h2>
             <button
               onClick={onClose}
@@ -1993,7 +1993,7 @@ const KitchenOrdersModal = ({ orders, statusFilter, onStatusFilterChange, onClos
                       <div key={order._id} className="border border-orange-200 rounded-lg p-4 bg-orange-50">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <span className="font-bold text-gray-900">#{order.orderNumber}</span>
+                            <span className="font-bold text-gray-900">#{(order.orderNumber || '').split('-').pop()}</span>
                             <span className="ml-2 text-sm text-gray-600">
                               {order.tableNumber ? `Table ${order.tableNumber}` : order.orderType}
                             </span>
@@ -2029,7 +2029,7 @@ const KitchenOrdersModal = ({ orders, statusFilter, onStatusFilterChange, onClos
                       <div key={order._id} className="border border-green-200 rounded-lg p-4 bg-green-50">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <span className="font-bold text-gray-900">#{order.orderNumber}</span>
+                            <span className="font-bold text-gray-900">#{(order.orderNumber || '').split('-').pop()}</span>
                             <span className="ml-2 text-sm text-gray-600">
                               {order.tableNumber ? `Table ${order.tableNumber}` : order.orderType}
                             </span>

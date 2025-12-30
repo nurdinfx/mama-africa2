@@ -318,6 +318,7 @@ const POS = () => {
     const isVatEnabled = overrides.vatEnabled !== undefined ? overrides.vatEnabled : true;
 
     // Base values
+    const receiptNumber = (order.orderNumber || '').split('-').pop() || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     const displaySubtotal = order.subtotal || (order.finalTotal - order.tax);
     const displayTax = isVatEnabled ? (order.tax || 0) : 0.00;
     const displayDiscount = order.discount || 0;
@@ -482,7 +483,7 @@ const POS = () => {
           <div class="info-section">
             <div class="info-row">
               <span class="info-label">Receipt Number :</span>
-              <span class="info-value">${order.orderNumber || '12151'}</span>
+              <span class="info-value">${(order.orderNumber || '').split('-').pop() || '0001'}</span>
             </div>
             <div class="info-row">
               <span class="info-label">Served By :</span>

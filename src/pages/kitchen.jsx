@@ -369,7 +369,7 @@ const OrderCard = ({
       <div className="p-3 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 rounded-t-lg">
         <div>
           <div className="flex items-center space-x-2 mb-1">
-            <span className="text-xs font-bold text-slate-500">#{order.orderNumber?.slice(-4) || '----'}</span>
+            <span className="text-xs font-bold text-slate-500">#{(order.orderNumber || '').split('-').pop() || '----'}</span>
             {order.tableNumber && <span className="px-2 py-0.5 bg-slate-800 text-white text-xs font-bold rounded">TBL {order.tableNumber}</span>}
             {!order.tableNumber && <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-xs font-bold rounded">WALK-IN</span>}
           </div>

@@ -326,7 +326,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-slate-800">{activity.orderNumber}</p>
+                      <p className="font-semibold text-slate-800">{(activity.orderNumber || '').split('-').pop()}</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(activity.status)}`}>
                         {activity.status}
                       </span>
