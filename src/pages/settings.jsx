@@ -3,9 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('general');
-  const [settings, setSettings] = useState({
+  const initialSettings = {
     // General Settings
     restaurantName: '',
     address: '',
@@ -13,7 +15,7 @@ const Settings = () => {
     email: '',
     website: '',
     taxId: '',
-    
+
     // POS Settings
     taxRate: 10,
     serviceCharge: 5,
@@ -21,7 +23,7 @@ const Settings = () => {
     receiptHeader: '',
     receiptFooter: '',
     receiptSize: '58mm',
-    
+
     // Business Hours
     businessHours: {
       monday: { open: '09:00', close: '22:00', closed: false },
@@ -32,7 +34,7 @@ const Settings = () => {
       saturday: { open: '10:00', close: '23:00', closed: false },
       sunday: { open: '10:00', close: '21:00', closed: false }
     },
-    
+
     // System Settings
     autoBackup: true,
     lowStockAlert: true,
@@ -40,48 +42,56 @@ const Settings = () => {
     printReceipt: true,
     language: 'en',
     timezone: 'UTC-5'
-  });
-  
-  const [loading, setLoading] = useState(false);
+  };
+
+  const {
+    data: settings,
+    loading: initialLoad, // Hook handles initial loading logic
+    error: hookError,
+    refresh: loadSettings,
+    setData: setSettings
+  } = useOptimisticData('settings_data', async () => {
+    const response = await realApi.getSettings();
+    if (response.success) {
+      const settingsData = realApi.extractData(response);
+      if (settingsData) {
+        // Merge with existing structure ensuring defaults
+        return {
+          ...initialSettings,
+          ...settingsData,
+          businessHours: {
+            ...initialSettings.businessHours,
+            ...settingsData.businessHours
+          }
+        };
+      }
+    } else {
+      throw new Error(response.message || 'Failed to load settings');
+    }
+    return initialSettings;
+  }, initialSettings);
+
+  const [loading, setLoading] = useState(false); // Action loading state
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
-  const [initialLoad, setInitialLoad] = useState(true);
+  // const [initialLoad, setInitialLoad] = useState(true); // Handled by hook
 
   const { user } = useAuth();
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (hookError) setError(hookError.message);
+  }, [hookError]);
 
+  // useEffect(() => {
+  //   loadSettings();
+  // }, []);
+
+  // loadSettings logic replaced by hook
+  /*
   const loadSettings = async () => {
-    try {
-      setInitialLoad(true);
-      setError('');
-      
-      const response = await realApi.getSettings();
-      if (response.success) {
-        const settingsData = realApi.extractData(response);
-        if (settingsData) {
-          setSettings(prev => ({
-            ...prev,
-            ...settingsData,
-            // Ensure business hours has all days
-            businessHours: {
-              ...prev.businessHours,
-              ...settingsData.businessHours
-            }
-          }));
-        }
-      } else {
-        throw new Error(response.message || 'Failed to load settings');
-      }
-    } catch (error) {
-      console.error('❌ Failed to load settings from API:', error);
-      setError('Failed to load settings: ' + (error.message || 'Unknown error'));
-    } finally {
-      setInitialLoad(false);
-    }
+    // ...
   };
+  */
 
   const handleSaveSettings = async () => {
     setLoading(true);
@@ -92,7 +102,7 @@ const Settings = () => {
         console.log('Settings saved successfully:', response.data);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
-        
+
         // Update local settings with the response data
         const updatedSettings = realApi.extractData(response);
         if (updatedSettings) {
@@ -187,7 +197,7 @@ const Settings = () => {
         language: 'en',
         timezone: 'UTC-5'
       };
-      
+
       setSettings(defaultSettings);
       await handleSaveSettings();
     }
@@ -254,11 +264,10 @@ const Settings = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-6 py-4 font-medium text-sm border-b-2 transition-colors ${
-                  activeTab === tab.id
+                className={`flex items-center px-6 py-4 font-medium text-sm border-b-2 transition-colors ${activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                }`}
+                  }`}
               >
                 <span className="mr-2 text-lg">{tab.icon}</span>
                 {tab.name}
@@ -312,7 +321,7 @@ const GeneralSettings = ({ settings, onChange }) => {
   return (
     <div className="space-y-6">
       <h2 className="heading-2 text-slate-900">Restaurant Information</h2>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -401,7 +410,7 @@ const POSSettings = ({ settings, onChange }) => {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-gray-900">POS Configuration</h2>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -501,7 +510,7 @@ const BusinessHours = ({ settings, onChange, days }) => {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-gray-900">Business Hours</h2>
       <p className="text-gray-600">Set your restaurant's operating hours</p>
-      
+
       <div className="space-y-4">
         {days.map(day => (
           <div key={day.key} className="flex items-center justify-between p-4 border rounded-lg">
@@ -517,7 +526,7 @@ const BusinessHours = ({ settings, onChange, days }) => {
                   {day.label}
                 </span>
               </label>
-              
+
               {!settings.businessHours[day.key].closed && (
                 <div className="flex items-center space-x-2">
                   <input
@@ -536,7 +545,7 @@ const BusinessHours = ({ settings, onChange, days }) => {
                 </div>
               )}
             </div>
-            
+
             {settings.businessHours[day.key].closed ? (
               <span className="text-red-600 text-sm font-medium">Closed</span>
             ) : (
@@ -554,7 +563,7 @@ const SystemSettings = ({ settings, onChange, onClearCache, onBackupDatabase, on
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-gray-900">System Preferences</h2>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -592,7 +601,7 @@ const SystemSettings = ({ settings, onChange, onClearCache, onBackupDatabase, on
 
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">Features & Notifications</h3>
-        
+
         <div className="space-y-3">
           <label className="flex items-center">
             <input
@@ -639,21 +648,21 @@ const SystemSettings = ({ settings, onChange, onClearCache, onBackupDatabase, on
       <div className="border-t pt-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">System Maintenance</h3>
         <div className="space-y-3">
-          <button 
+          <button
             onClick={onClearCache}
             disabled={loading}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium"
           >
             Clear Cache
           </button>
-          <button 
+          <button
             onClick={onBackupDatabase}
             disabled={loading}
             className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium"
           >
             Backup Database
           </button>
-          <button 
+          <button
             onClick={onResetDefaults}
             disabled={loading}
             className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium"

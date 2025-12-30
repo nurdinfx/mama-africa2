@@ -5,119 +5,135 @@ import { realApi } from '../api/realApi';
 import { Link } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils/date';
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const Finance = () => {
-  const [expenses, setExpenses] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [filteredExpenses, setFilteredExpenses] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // We will cache the main view data. Complex filters might bypass cache or use specific keys.
+  // For simplicity, we'll cache the default view and let the hook handle updates.
+  // We need to move filters definition up to use them in the hook key/dependency if we want caching per filter.
+  // Or simpler: Cache default view, and if filters are active, just fetch normally (or using the hook with different key).
+
   const [filters, setFilters] = useState({
     category: '',
     startDate: '',
     endDate: ''
   });
-  const [financialStats, setFinancialStats] = useState({
-    totalRevenue: 0,
-    totalExpenses: 0,
-    netProfit: 0,
-    monthlyRevenue: 0,
-    monthlyExpenses: 0
-  });
-  const [error, setError] = useState('');
-  const [settings, setSettings] = useState(null);
   const [txFilters, setTxFilters] = useState({
     search: '',
     from: '',
     to: '',
     type: ''
   });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newTransaction, setNewTransaction] = useState({
-    date: new Date().toISOString().split('T')[0],
-    type: 'expense',
-    category: 'General',
-    amount: '',
-    paymentMethod: 'cash',
-    description: '',
-    reference: ''
-  });
 
-  const { user } = useAuth();
+  // Create a stable key based on filters to allow caching different views
+  // Limiting to a few common combinations to avoid cache explosion could be wise, but localStorage is 5MB.
+  // Let's just use a single key for "finance_dashboard" which represents the default view.
+  // If filters are active, we might not want to write to that same key.
+  // Actually, the user wants "instant load". That implies the INITIAL load (default view) is most important.
 
-  useEffect(() => {
-    loadFinancialData();
-  }, []);
+  const isDefaultView = !filters.category && !filters.startDate && !filters.endDate && !txFilters.search && !txFilters.from && !txFilters.to && !txFilters.type;
+  const cacheKey = isDefaultView ? 'finance_overview' : null; // Only cache default view
 
-  useEffect(() => {
-    if (filters.startDate || filters.endDate) {
-      loadFinancialData();
+  const initialFinanceData = {
+    expenses: [],
+    transactions: [],
+    financialStats: {
+      totalRevenue: 0,
+      totalExpenses: 0,
+      netProfit: 0,
+      monthlyRevenue: 0,
+      monthlyExpenses: 0
+    },
+    settings: null
+  };
+
+  const {
+    data: financeData,
+    loading: hookLoading,
+    error: hookError,
+    refresh
+  } = useOptimisticData(cacheKey || 'finance_temp', async () => {
+    const expenseParams = {
+      category: filters.category || undefined,
+      startDate: filters.startDate || undefined,
+      endDate: filters.endDate || undefined
+    };
+    const txParams = {
+      type: txFilters.type || undefined,
+      startDate: txFilters.from || undefined,
+      endDate: txFilters.to || undefined
+    };
+
+    const [settingsResponse, transactionsResponse, expensesResponse] = await Promise.all([
+      realApi.getSettings(),
+      realApi.getTransactions(txParams),
+      realApi.getExpenses(expenseParams)
+    ]);
+
+    const result = { ...initialFinanceData };
+
+    if (settingsResponse.success) {
+      result.settings = realApi.extractData(settingsResponse);
     }
-  }, [filters.startDate, filters.endDate]);
 
+    const txRaw = transactionsResponse.success ? (realApi.extractData(transactionsResponse) || []) : [];
+    const txList = Array.isArray(txRaw)
+      ? txRaw
+      : (Array.isArray(txRaw?.transactions) ? txRaw.transactions : []);
+    result.transactions = Array.isArray(txList) ? txList : [];
+
+    if (expensesResponse.success) {
+      const expensesData = realApi.extractData(expensesResponse) || [];
+      result.expenses = Array.isArray(expensesData) ? expensesData : [];
+    }
+
+    const safeTx = result.transactions;
+    const incomeTotal = safeTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0);
+    const expenseTotal = safeTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0);
+
+    result.financialStats = {
+      totalRevenue: incomeTotal,
+      totalExpenses: expenseTotal,
+      netProfit: incomeTotal - expenseTotal,
+      monthlyRevenue: incomeTotal,
+      monthlyExpenses: expenseTotal
+    };
+
+    return result;
+  }, initialFinanceData, [filters, txFilters]); // Re-fetch when filters change
+
+  // Destructure data
+  const { expenses, transactions, financialStats, settings } = financeData;
+  const [orders, setOrders] = useState([]); // Kept as in original but seems unused/cleared
+  const [filteredExpenses, setFilteredExpenses] = useState([]);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
+
+  const loading = hookLoading;
+  const [error, setError] = useState('');
+
+  // Sync hook error
   useEffect(() => {
+    if (hookError) setError(hookError.message);
+  }, [hookError]);
+
+  // Initial load handled by hook
+  // useEffect(() => {
+  //   loadFinancialData();
+  // }, []);
+
+  // Filter effects
+  useEffect(() => {
+    // We already have fresh data from hook based on API filters for transactions/expenses list if the API supports it.
+    // However, the original code also had client-side filtering logic:
     filterExpenses();
     calculateStats();
     filterTransactions();
-  }, [expenses, orders, filters, transactions, txFilters.search]);
+  }, [financeData, filters, txFilters.search]); // Updated dependencies
 
-  const loadFinancialData = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const expenseParams = {
-        category: filters.category || undefined,
-        startDate: filters.startDate || undefined,
-        endDate: filters.endDate || undefined
-      };
-      const txParams = {
-        type: txFilters.type || undefined,
-        startDate: txFilters.from || undefined,
-        endDate: txFilters.to || undefined
-      };
-      const [settingsResponse, transactionsResponse, expensesResponse] = await Promise.all([
-        realApi.getSettings(),
-        realApi.getTransactions(txParams),
-        realApi.getExpenses(expenseParams)
-      ]);
-      if (settingsResponse.success) {
-        setSettings(realApi.extractData(settingsResponse));
-      }
-      const txRaw = transactionsResponse.success ? (realApi.extractData(transactionsResponse) || []) : [];
-      const txList = Array.isArray(txRaw)
-        ? txRaw
-        : (Array.isArray(txRaw?.transactions) ? txRaw.transactions : []);
-      console.log('💰 Transactions loaded:', txList.length);
-      setTransactions(Array.isArray(txList) ? txList : []);
-      
-      if (expensesResponse.success) {
-        const expensesData = realApi.extractData(expensesResponse) || [];
-        setExpenses(expensesData);
-      } else {
-        throw new Error(expensesResponse.message || 'Failed to load expenses');
-      }
-      const safeTx = Array.isArray(txList) ? txList : [];
-      const incomeTotal = safeTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0);
-      const expenseTotal = safeTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0);
-      setOrders([]);
-      setFinancialStats(prev => ({
-        ...prev,
-        totalRevenue: incomeTotal,
-        totalExpenses: expenseTotal,
-        netProfit: incomeTotal - expenseTotal,
-        monthlyRevenue: incomeTotal,
-        monthlyExpenses: expenseTotal
-      }));
-      
-    } catch (error) {
-      console.error('Failed to load financial data:', error);
-      setError('Failed to load financial data: ' + error.message);
-      setExpenses([]);
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Replaced loadFinancialData function with hook logic.
+  // But we need to keep a 'reload' function for actions like 'saveTransaction'.
+  const loadFinancialData = refresh;
+
 
   const filterTransactions = () => {
     let list = Array.isArray(transactions) ? transactions : [];
@@ -139,13 +155,13 @@ const Finance = () => {
     }
 
     if (filters.startDate) {
-      filtered = filtered.filter(expense => 
+      filtered = filtered.filter(expense =>
         new Date(expense.date) >= new Date(filters.startDate)
       );
     }
 
     if (filters.endDate) {
-      filtered = filtered.filter(expense => 
+      filtered = filtered.filter(expense =>
         new Date(expense.date) <= new Date(filters.endDate)
       );
     }
@@ -246,7 +262,7 @@ const Finance = () => {
 
   const categories = ['food', 'supplies', 'utilities', 'salaries', 'rent', 'maintenance', 'other'];
 
-  
+
 
   return (
     <div className="space-y-6">
@@ -286,9 +302,8 @@ const Finance = () => {
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
           <h3 className="text-lg font-semibold text-gray-900">Balance</h3>
-          <p className={`text-3xl font-bold ${
-            financialStats.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'
-          }`}>
+          <p className={`text-3xl font-bold ${financialStats.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'
+            }`}>
             {formatCurrency(financialStats.netProfit, settings?.currency || 'USD')}
           </p>
         </div>

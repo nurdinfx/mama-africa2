@@ -15,13 +15,29 @@ const SummaryCard = ({ title, value, color, icon: Icon }) => (
   </div>
 );
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const CustomerLedger = () => {
   const { user } = useAuth();
-  const [customers, setCustomers] = useState([]);
+
+  // Optimistic customers load
+  const {
+    data: customers,
+    loading: hookLoading,
+    error: hookError,
+    refresh: loadCustomers
+  } = useOptimisticData('customers_ledger_list', async () => {
+    const response = await realApi.getCustomers();
+    const list = realApi.extractData(response)?.customers || realApi.extractData(response) || response.data || [];
+    const customersArray = Array.isArray(list) ? list : [];
+    return [...customersArray].sort((a, b) => a.name.localeCompare(b.name));
+  }, []);
+
+  // const [customers, setCustomers] = useState([]); // Replaced
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [summary, setSummary] = useState({ debit: 0, credit: 0, balance: 0 });
   const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Ledger loading state
   const [error, setError] = useState('');
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', address: '' });
@@ -30,36 +46,23 @@ const CustomerLedger = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // Load customers on component mount
   useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  // Load ledger when customer is selected
-  useEffect(() => {
-    if (selectedCustomerId) {
-      loadLedger();
+    if (customers.length > 0 && !selectedCustomerId) {
+      setSelectedCustomerId(customers[0]._id);
     }
-  }, [selectedCustomerId]);
+  }, [customers]); // Auto-select first customer when loaded
 
+  // Initial load handled by hook
+  // useEffect(() => {
+  //   loadCustomers();
+  // }, []);
+
+  /* loadCustomers replaced by hook */
+  /*
   const loadCustomers = async () => {
-    try {
-      setLoading(true);
-      const response = await realApi.getCustomers();
-      const list = realApi.extractData(response)?.customers || realApi.extractData(response) || response.data || [];
-      const customersArray = Array.isArray(list) ? list : [];
-      const sortedCustomers = [...customersArray].sort((a, b) => a.name.localeCompare(b.name));
-      setCustomers(sortedCustomers);
-      if (sortedCustomers.length > 0 && !selectedCustomerId) {
-        setSelectedCustomerId(sortedCustomers[0]._id);
-      }
-    } catch (e) {
-      console.error('Load customers error:', e);
-      setError('Failed to load customers');
-    } finally {
-      setLoading(false);
-    }
+    // ...
   };
+  */
 
   const loadLedger = async () => {
     if (!selectedCustomerId) return;

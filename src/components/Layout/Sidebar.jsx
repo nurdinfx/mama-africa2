@@ -26,7 +26,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'manager'] },
     { name: 'POS', href: '/pos', icon: CreditCard, roles: ['admin', 'manager', 'cashier', 'waiter'] },
     { name: 'Kitchen', href: '/kitchen', icon: ChefHat, roles: ['admin', 'chef'] },
-    { name: 'Orders', href: '/orders', icon: Package, roles: ['admin', 'manager', 'cashier'] },
+    { name: 'Orders', href: '/orders', icon: Package, roles: ['admin', 'manager', 'cashier', 'waiter'] },
     { name: 'Tables', href: '/tables', icon: Table, roles: ['admin', 'manager', 'waiter'] }, // Previous "Products" link, moved to real Tables
     { name: 'Inventory', href: '/inventory', icon: Archive, roles: ['admin', 'manager'] },
     { name: 'Customer Ledger', href: '/customers/ledger', icon: BookOpen, roles: ['admin', 'manager', 'cashier'] },

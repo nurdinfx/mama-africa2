@@ -10,10 +10,56 @@ import { useAuth } from '../contexts/AuthContext';
 import { API_CONFIG } from '../config/api.config';
 import { RefreshCw, DollarSign, Package, Building, AlertCircle } from 'lucide-react';
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const Purchase = () => {
   const [activeView, setActiveView] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [purchaseStats, setPurchaseStats] = useState({
+
+  // Use optimistic hook
+  const {
+    data: purchaseStats,
+    loading: hookLoading, // Rename to avoid conflict if necessary
+    error: hookError,
+    refresh: refreshStats
+  } = useOptimisticData('purchase_stats', async () => {
+    console.log('📊 Loading purchase stats from backend...');
+
+    const [purchasesRes, suppliersRes, poRes] = await Promise.all([
+      realApi.getPurchases(),
+      realApi.getSuppliers ? realApi.getSuppliers() : Promise.resolve({ success: false }),
+      realApi.getPurchaseOrders ? realApi.getPurchaseOrders() : Promise.resolve({ success: false })
+    ]);
+
+    if (!purchasesRes.success) throw new Error(purchasesRes.message || 'Failed to load purchases');
+
+    const purchases = realApi.extractData(purchasesRes) || [];
+    const suppliers = suppliersRes.success ? (realApi.extractData(suppliersRes) || []) : [];
+    const purchaseOrders = poRes.success ? (realApi.extractData(poRes) || []) : [];
+
+    const today = new Date().toDateString();
+    const todayPurchasesArr = Array.isArray(purchases)
+      ? purchases.filter(p => new Date(p.createdAt || p.date || p.purchaseDate || p.updatedAt).toDateString() === today)
+      : [];
+
+    const totalAmount = Array.isArray(purchases)
+      ? purchases.reduce((s, p) => s + (p.totalAmount || p.finalTotal || p.amount || 0), 0)
+      : 0;
+    const todayAmount = todayPurchasesArr.reduce((s, p) => s + (p.totalAmount || p.finalTotal || p.amount || 0), 0);
+    const pendingOrders = Array.isArray(purchaseOrders)
+      ? purchaseOrders.filter(po => (po.status || '').toLowerCase() === 'pending').length
+      : 0;
+    const activeSuppliers = Array.isArray(suppliers) ? suppliers.length : 0;
+
+    return {
+      totalPurchases: Array.isArray(purchases) ? purchases.length : 0,
+      totalAmount,
+      pendingOrders,
+      activeSuppliers,
+      todayPurchases: todayPurchasesArr.length,
+      todayAmount
+    };
+  }, {
     totalPurchases: 0,
     totalAmount: 0,
     pendingOrders: 0,
@@ -21,8 +67,11 @@ const Purchase = () => {
     todayPurchases: 0,
     todayAmount: 0
   });
-  const [loading, setLoading] = useState(false);
-  const [backendStatus, setBackendStatus] = useState('checking');
+
+  // Calculate generic loading/status
+  const loading = hookLoading;
+  const backendStatus = hookError ? 'error' : (loading ? 'checking' : 'connected');
+
   const timeIntervalRef = useRef(null);
   const { user, backendStatus: authBackendStatus } = useAuth();
 
@@ -39,79 +88,15 @@ const Purchase = () => {
     };
   }, []);
 
-  // Load purchase statistics
+  // Reload stats when returning to main view
   useEffect(() => {
     if (!activeView) {
-      loadPurchaseStats();
+      refreshStats();
     }
-  }, [activeView]);
+  }, [activeView, refreshStats]);
 
-  const loadPurchaseStats = async () => {
-    try {
-      setLoading(true);
-      setBackendStatus('loading');
+  // Removed old loadPurchaseStats function entirely as it's now in the hook
 
-      console.log('📊 Loading purchase stats from backend (purchases, suppliers, purchase-orders)...');
-
-      // Use existing backend endpoints (no /purchases/dashboard-stats in backend)
-      const [purchasesRes, suppliersRes, poRes] = await Promise.all([
-        realApi.getPurchases(),
-        realApi.getSuppliers ? realApi.getSuppliers() : Promise.resolve({ success: false }),
-        realApi.getPurchaseOrders ? realApi.getPurchaseOrders() : Promise.resolve({ success: false })
-      ]);
-
-      console.log('📦 Purchases response:', purchasesRes);
-      console.log('📦 Suppliers response:', suppliersRes);
-      console.log('📦 PurchaseOrders response:', poRes);
-
-      if (!purchasesRes.success) throw new Error(purchasesRes.message || 'Failed to load purchases');
-
-      const purchases = realApi.extractData(purchasesRes) || [];
-      const suppliers = suppliersRes.success ? (realApi.extractData(suppliersRes) || []) : [];
-      const purchaseOrders = poRes.success ? (realApi.extractData(poRes) || []) : [];
-
-      const today = new Date().toDateString();
-      const todayPurchasesArr = Array.isArray(purchases)
-        ? purchases.filter(p => new Date(p.createdAt || p.date || p.purchaseDate || p.updatedAt).toDateString() === today)
-        : [];
-
-      const totalAmount = Array.isArray(purchases)
-        ? purchases.reduce((s, p) => s + (p.totalAmount || p.finalTotal || p.amount || 0), 0)
-        : 0;
-      const todayAmount = todayPurchasesArr.reduce((s, p) => s + (p.totalAmount || p.finalTotal || p.amount || 0), 0);
-      const pendingOrders = Array.isArray(purchaseOrders)
-        ? purchaseOrders.filter(po => (po.status || '').toLowerCase() === 'pending').length
-        : 0;
-      const activeSuppliers = Array.isArray(suppliers) ? suppliers.length : 0;
-
-      setPurchaseStats({
-        totalPurchases: Array.isArray(purchases) ? purchases.length : 0,
-        totalAmount,
-        pendingOrders,
-        activeSuppliers,
-        todayPurchases: todayPurchasesArr.length,
-        todayAmount
-      });
-
-      setBackendStatus('connected');
-      console.log('✅ Purchase stats loaded successfully');
-    } catch (error) {
-      console.error('❌ Error loading purchase stats:', error);
-      setBackendStatus('error');
-
-      // Set default stats when backend fails
-      setPurchaseStats({
-        totalPurchases: 0,
-        totalAmount: 0,
-        pendingOrders: 0,
-        activeSuppliers: 0,
-        todayPurchases: 0,
-        todayAmount: 0
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Format date/time
   const formatDateTime = (date) => {
@@ -331,76 +316,76 @@ const Purchase = () => {
       <div className="flex-1 overflow-auto">
         <h2 className="heading-2 text-slate-800 mb-4">Purchase Modules</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-              {purchaseModules.map((module) => (
-                <button
-                  key={module.id}
-                  onClick={() => setActiveView(module.id)}
-                  className="bg-white hover:bg-blue-50 border border-blue-200 rounded-xl p-6 text-center transition-all duration-200 transform hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-300 group"
-                >
-                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200">
-                    {module.icon}
-                  </div>
-                  <div className="font-semibold text-lg text-gray-800 group-hover:text-blue-700 mb-2">
-                    {module.title}
-                  </div>
-                  <div className="text-sm text-gray-500 group-hover:text-blue-600 mb-3">
-                    {module.description}
-                  </div>
-                  <div className="text-xs text-blue-400 font-medium">
-                    Click to open →
-                  </div>
-                </button>
-              ))}
+          {purchaseModules.map((module) => (
+            <button
+              key={module.id}
+              onClick={() => setActiveView(module.id)}
+              className="bg-white hover:bg-blue-50 border border-blue-200 rounded-xl p-6 text-center transition-all duration-200 transform hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-300 group"
+            >
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200">
+                {module.icon}
+              </div>
+              <div className="font-semibold text-lg text-gray-800 group-hover:text-blue-700 mb-2">
+                {module.title}
+              </div>
+              <div className="text-sm text-gray-500 group-hover:text-blue-600 mb-3">
+                {module.description}
+              </div>
+              <div className="text-xs text-blue-400 font-medium">
+                Click to open →
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Status Section */}
+      <div className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 shadow-sm border border-blue-200">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-800">System Status</h2>
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-gray-500">
+              Real Time: {currentTime.toLocaleTimeString()}
+            </div>
+            <div className={`px-2 py-1 rounded text-xs ${backendStatus === 'connected' ? 'bg-green-100 text-green-800' :
+              backendStatus === 'loading' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+              {backendStatus === 'connected' ? 'Connected' :
+                backendStatus === 'loading' ? 'Loading' : 'Error'}
             </div>
           </div>
+        </div>
 
-          {/* Status Section */}
-          <div className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 shadow-sm border border-blue-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">System Status</h2>
-              <div className="flex items-center gap-2">
-                <div className="text-sm text-gray-500">
-                  Real Time: {currentTime.toLocaleTimeString()}
-                </div>
-                <div className={`px-2 py-1 rounded text-xs ${backendStatus === 'connected' ? 'bg-green-100 text-green-800' :
-                    backendStatus === 'loading' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                  }`}>
-                  {backendStatus === 'connected' ? 'Connected' :
-                    backendStatus === 'loading' ? 'Loading' : 'Error'}
-                </div>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+            <div className="text-2xl font-bold text-blue-600">{purchaseModules.length}</div>
+            <div className="text-sm text-gray-600">Available Modules</div>
+          </div>
+          <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+            <div className="text-2xl font-bold text-green-600">🛒</div>
+            <div className="text-sm text-gray-600">Real Purchase Data</div>
+          </div>
+          <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+            <div className="text-2xl font-bold text-purple-600">📋</div>
+            <div className="text-sm text-gray-600">Live Backend</div>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-blue-200 text-sm text-gray-500">
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="font-medium">User:</span> {user?.name || user?.username || user?.email || 'Not logged in'}
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                <div className="text-2xl font-bold text-blue-600">{purchaseModules.length}</div>
-                <div className="text-sm text-gray-600">Available Modules</div>
-              </div>
-              <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                <div className="text-2xl font-bold text-green-600">🛒</div>
-                <div className="text-sm text-gray-600">Real Purchase Data</div>
-              </div>
-              <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                <div className="text-2xl font-bold text-purple-600">📋</div>
-                <div className="text-sm text-gray-600">Live Backend</div>
-              </div>
+            <div>
+              <span className="font-medium">Backend:</span> {API_CONFIG.API_URL}
             </div>
-
-            <div className="mt-6 pt-6 border-t border-blue-200 text-sm text-gray-500">
-              <div className="flex justify-between items-center">
-                <div>
-                  <span className="font-medium">User:</span> {user?.name || user?.username || user?.email || 'Not logged in'}
-                </div>
-                <div>
-                  <span className="font-medium">Backend:</span> {API_CONFIG.API_URL}
-                </div>
-                <div>
-                  <span className="font-medium">Date:</span> {currentTime.toLocaleDateString()}
-                </div>
-              </div>
+            <div>
+              <span className="font-medium">Date:</span> {currentTime.toLocaleDateString()}
             </div>
           </div>
+        </div>
+      </div>
     </div>
   );
 };

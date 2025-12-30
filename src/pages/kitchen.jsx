@@ -3,12 +3,38 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { realApi } from '../api/realApi';
-import { getCache, setCache } from '../services/offlineCache';
+// import { getCache, setCache } from '../services/offlineCache'; // Removed
 import { formatTime } from '../utils/date';
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const Kitchen = ({ isPosMode = false }) => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Use optimistic hook
+  const {
+    data: orders,
+    loading: hookLoading,
+    error: hookError,
+    refresh: loadKitchenOrders,
+    setData: setOrders
+  } = useOptimisticData('kitchen-orders', async () => {
+    console.log('🔄 Loading kitchen orders from backend...');
+    const response = await realApi.getKitchenOrders({
+      kitchenStatus: 'all',
+      limit: 100
+    });
+
+    if (response.success) {
+      const ordersData = realApi.extractData(response) || [];
+      const ordersArray = Array.isArray(ordersData) ? ordersData :
+        (ordersData.orders && Array.isArray(ordersData.orders) ? ordersData.orders : []);
+      return ordersArray;
+    }
+    throw new Error(response.message || 'Failed to load kitchen orders');
+  }, []);
+
+  // const [orders, setOrders] = useState([]); // Replaced by hook
+  // const [loading, setLoading] = useState(false); // Replaced by hook
+  const loading = hookLoading;
   const [error, setError] = useState('');
   const [selectedStation, setSelectedStation] = useState('all');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -17,15 +43,14 @@ const Kitchen = ({ isPosMode = false }) => {
   const { socket, emit, isConnected } = useSocket();
 
   useEffect(() => {
-    // ... (existing useEffect logic)
-    const cached = getCache('kitchen-orders', []);
-    if (Array.isArray(cached) && cached.length > 0) {
-      setOrders(cached);
-    }
-    loadKitchenOrders();
+    if (hookError) setError(hookError.message);
+  }, [hookError]);
+
+  useEffect(() => {
+    // Initial load handled by hook
 
     // Set up auto-refresh every 15 seconds
-    const interval = setInterval(loadKitchenOrders, 15000);
+    const interval = setInterval(() => loadKitchenOrders(true), 15000); // silent refresh
 
     // Listen for real-time updates
     if (socket && isConnected) {
@@ -62,78 +87,14 @@ const Kitchen = ({ isPosMode = false }) => {
         socket.off('order-completed');
       }
     };
-  }, [socket, isConnected, soundEnabled]);
+  }, [socket, isConnected, soundEnabled, loadKitchenOrders, setOrders, user, soundEnabled]); // Added dependencies
 
-  // ... (keep helper functions like playSound, etc. - I'm using the existing ones implicitly by not replacing them if I use replacement correctly, but since I am replacing the top part, I need to look out)
-  // Wait, I am replacing lines 9 to 250! I must include all the helper functions I am replacing!
-  // This approach is risky if I don't paste the helpers.
-  // I will check lines 66-198. They are helpers.
-  // I should only replace the 'return' block OR just the component definition line and the return block.
-  // Splitting into two edits is better.
-  // Edit 1: Component definition.
-  // Edit 2: Return block.
-
-
-  const playSound = (type) => {
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      if (type === 'new-order') {
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-        oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-      } else if (type === 'order-ready') {
-        oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
-        oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.2);
-      }
-
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
-    } catch (error) {
-      console.log('Web Audio API not supported');
-    }
-  };
-
+  /* loadKitchenOrders replaced by hook */
+  /*
   const loadKitchenOrders = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      console.log('🔄 Loading kitchen orders from backend...');
-
-      const response = await realApi.getKitchenOrders({
-        kitchenStatus: 'all',
-        limit: 100
-      });
-
-      console.log('📦 Kitchen orders API response:', response);
-
-      if (response.success) {
-        const ordersData = realApi.extractData(response) || [];
-        const ordersArray = Array.isArray(ordersData) ? ordersData :
-          (ordersData.orders && Array.isArray(ordersData.orders) ? ordersData.orders : []);
-
-        console.log('✅ Kitchen orders loaded:', ordersArray.length);
-        setOrders(ordersArray);
-        setCache('kitchen-orders', ordersArray);
-      } else {
-        throw new Error(response.message || 'Failed to load kitchen orders');
-      }
-    } catch (error) {
-      console.error('❌ Failed to load kitchen orders:', error);
-      setError(error.message || 'Failed to load kitchen orders');
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
+     // ...
   };
+  */
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {

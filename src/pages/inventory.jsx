@@ -15,10 +15,44 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const Inventory = () => {
-  const [products, setProducts] = useState([]);
+  // Products hook
+  const {
+    data: products,
+    loading: productsLoading,
+    error: productsError,
+    refresh: loadProducts
+  } = useOptimisticData('inventory_products', async () => {
+    const response = await realApi.getProducts();
+    if (response.success) {
+      return realApi.extractData(response) || [];
+    }
+    throw new Error(response.message || 'Failed to load products');
+  }, []);
+
+  // Categories hook
+  const {
+    data: categories,
+    refresh: loadCategories
+  } = useOptimisticData('inventory_categories', async () => {
+    try {
+      const response = await realApi.getCategories();
+      if (response.success) {
+        return realApi.extractData(response) || [];
+      }
+    } catch (e) {
+      return ['Main Course', 'Appetizers', 'Sides', 'Beverages', 'Desserts', 'Salads', 'Soup'];
+    }
+    return [];
+  }, ['Main Course', 'Appetizers', 'Sides', 'Beverages', 'Desserts', 'Salads', 'Soup']);
+
+  // const [products, setProducts] = useState([]); // Replaced by hook
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true); // Replaced by hook
+  const loading = productsLoading;
+
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [filters, setFilters] = useState({
@@ -27,58 +61,49 @@ const Inventory = () => {
     lowStock: false
   });
   const [error, setError] = useState('');
-  const [categories, setCategories] = useState([]);
+  // const [categories, setCategories] = useState([]); // Replaced by hook
+
   const [newCategory, setNewCategory] = useState('');
   const [showNewCategory, setShowNewCategory] = useState(false);
 
   const { user } = useAuth();
 
   useEffect(() => {
-    loadProducts();
-    loadCategories();
-  }, []);
+    if (productsError) {
+      console.error('❌ Failed to load products:', productsError);
+      setError(productsError.message);
+    }
+  }, [productsError]);
+
+  // Initial load handled by hook
+  // useEffect(() => {
+  //   loadProducts();
+  //   loadCategories();
+  // }, []);
+
+  // loadProducts replaced by hook
+  /*
+  const loadProducts = async () => {
+    // ...
+  };
+  */
+
+  /* loadCategories replaced by hook */
+
+  // Handled by hook
+  // const loadCategories = async () => {
+  //   // ...
+  // };
 
   useEffect(() => {
     filterProducts();
   }, [products, filters]);
 
-  const loadProducts = async () => {
-    try {
-      // Don't set loading to true here to avoid blocking UI on refresh
-      // Only set for initial load if needed, or handle with a discreet spinner
-      setError('');
-
-      const response = await realApi.getProducts();
-
-      if (response.success) {
-        const productsData = realApi.extractData(response) || [];
-        setProducts(Array.isArray(productsData) ? productsData : []);
-      } else {
-        throw new Error(response.message || 'Failed to load products');
-      }
-    } catch (error) {
-      console.error('❌ Failed to load products:', error);
-      setError(error.message || 'Failed to load products');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadCategories = async () => {
-    try {
-      const response = await realApi.getCategories();
-      if (response.success) {
-        const categoriesData = realApi.extractData(response) || [];
-        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
-      }
-    } catch (error) {
-      setCategories(['Main Course', 'Appetizers', 'Sides', 'Beverages', 'Desserts', 'Salads', 'Soup']);
-    }
-  };
+  // filterProducts logic stays same
 
   const filterProducts = () => {
     let filtered = Array.isArray(products) ? products : [];
-
+    // ... same logic
     if (filters.category) {
       filtered = filtered.filter(product => product.category === filters.category);
     }
@@ -107,8 +132,8 @@ const Inventory = () => {
       }
 
       if (response.success) {
-        await loadProducts();
-        await loadCategories();
+        await loadProducts(); // Refresh via hook
+        await loadCategories(); // Refresh via hook
         setShowModal(false);
         setEditingProduct(null);
         setShowNewCategory(false);
@@ -126,7 +151,9 @@ const Inventory = () => {
       try {
         const response = await realApi.deleteProduct(productId);
         if (response.success) {
-          setProducts(prev => prev.filter(p => p._id !== productId));
+          // Ideally optimistically update, but refresh is fine for now
+          // setProducts(prev => prev.filter(p => p._id !== productId));
+          await loadProducts();
         } else {
           throw new Error(response.message || 'Failed to delete product');
         }
@@ -140,11 +167,9 @@ const Inventory = () => {
     try {
       const response = await realApi.updateStock(productId, { stock: newStock });
       if (response.success) {
-        setProducts(prev =>
-          prev.map(p =>
-            p._id === productId ? { ...p, stock: newStock } : p
-          )
-        );
+        // Optimistic update difficult without exposed setter, just refresh
+        // setProducts(prev => ...);
+        await loadProducts();
       } else {
         throw new Error(response.message || 'Failed to update stock');
       }

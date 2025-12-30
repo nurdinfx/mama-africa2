@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { realApi } from '../api/realApi.js';
-import { getCache, setCache } from '../services/offlineCache';
+// import { getCache, setCache } from '../services/offlineCache'; // Removed
 import { formatDate, formatTime } from '../utils/date';
 import {
   TrendingUp,
@@ -24,137 +24,88 @@ import RevenueChart from '../components/charts/RevenueChart';
 import SalesPieChart from '../components/charts/SalesPieChart';
 
 
-const Dashboard = () => {
-  const [stats, setStats] = useState({
-    todayRevenue: 0,
-    todayOrders: 0,
-    completedOrders: 0,
-    monthlyRevenue: 0,
-    totalCustomers: 0,
-    availableTables: 0,
-    lowStockProducts: 0,
-    averageOrderValue: 0,
-    pendingOrders: 0,
-    occupancyRate: 0
-  });
+import { useOptimisticData } from '../hooks/useOptimisticData';
 
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [topProducts, setTopProducts] = useState([]);
-  const [dailySales, setDailySales] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+const Dashboard = () => {
   const [timeframe, setTimeframe] = useState('today');
 
-  // Memoized fetch function
-  const fetchDashboardData = useCallback(async (timeRange = timeframe) => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Initial structure matches the state structure used previously
+  const initialData = {
+    stats: {
+      todayRevenue: 0,
+      todayOrders: 0,
+      completedOrders: 0,
+      monthlyRevenue: 0,
+      totalCustomers: 0,
+      availableTables: 0,
+      lowStockProducts: 0,
+      averageOrderValue: 0,
+      pendingOrders: 0,
+      occupancyRate: 0
+    },
+    recentActivity: [],
+    topProducts: [],
+    dailySales: [],
+    lastUpdated: new Date().toISOString()
+  };
 
-      console.log('📊 Fetching dashboard data for:', timeRange);
+  const {
+    data,
+    loading: hookLoading,
+    error: hookError,
+    refresh
+  } = useOptimisticData(`dashboard_data_${timeframe}`, async () => {
+    console.log('📊 Fetching dashboard data for:', timeframe);
 
-      // Fetch all dashboard data in parallel
-      const [statsResponse, activityResponse, productsResponse, salesResponse] = await Promise.allSettled([
-        realApi.getStats(timeRange),
-        realApi.getRecentActivity(6),
-        realApi.getTopProducts(5),
-        realApi.getDailySales(timeRange)
-      ]);
+    const [statsResponse, activityResponse, productsResponse, salesResponse] = await Promise.allSettled([
+      realApi.getStats(timeframe),
+      realApi.getRecentActivity(6),
+      realApi.getTopProducts(5),
+      realApi.getDailySales(timeframe)
+    ]);
 
-      // Handle stats response
-      if (statsResponse.status === 'fulfilled' && statsResponse.value.success) {
-        const statsData = realApi.extractData(statsResponse.value) || {};
-        setStats(prevStats => ({
-          ...prevStats,
-          ...statsData
-        }));
-        setCache('dashboard.stats', { ...stats, ...statsData });
-      } else {
-        console.warn('Stats API failed');
-        // No fallback data - rely on default 0 values
-      }
+    const result = { ...initialData, lastUpdated: new Date().toISOString() };
 
-      // Handle activity response
-      if (activityResponse.status === 'fulfilled' && activityResponse.value.success) {
-        const activityData = realApi.extractData(activityResponse.value) || [];
-        setRecentActivity(Array.isArray(activityData) ? activityData : []);
-        setCache('dashboard.activity', activityData);
-      } else {
-        console.warn('Activity API failed');
-        setRecentActivity([]);
-      }
-
-      // Handle products response
-      if (productsResponse.status === 'fulfilled' && productsResponse.value.success) {
-        const productsData = realApi.extractData(productsResponse.value) || [];
-        setTopProducts(Array.isArray(productsData) ? productsData : []);
-        setCache('dashboard.topProducts', productsData);
-      } else {
-        console.warn('Products API failed');
-        setTopProducts([]);
-      }
-
-      // Handle sales data for charts
-      if (salesResponse.status === 'fulfilled' && salesResponse.value.success) {
-        const salesResponseData = realApi.extractData(salesResponse.value) || {};
-        // The API returns { revenueData: [...] }
-        const salesData = salesResponseData.revenueData || (Array.isArray(salesResponseData) ? salesResponseData : []);
-        setDailySales(salesData);
-        setCache('dashboard.dailySales', salesData);
-      } else {
-        console.warn('Sales API failed');
-        setDailySales([]);
-      }
-
-      setDataLoaded(true);
-      const now = new Date();
-      setLastUpdated(now);
-      setCache('dashboard.lastUpdated', now.toISOString());
-
-    } catch (err) {
-      console.error('Dashboard data fetch error:', err);
-      setError(err.message || 'Failed to load dashboard data');
-      // Set minimal fallback data
-      setStats({
-        todayRevenue: 0,
-        todayOrders: 0,
-        completedOrders: 0,
-        monthlyRevenue: 0,
-        totalCustomers: 0,
-        availableTables: 0,
-        lowStockProducts: 0,
-        averageOrderValue: 0,
-        pendingOrders: 0,
-        occupancyRate: 0
-      });
-      setRecentActivity([]);
-      setTopProducts([]);
-      setDailySales([]);
-    } finally {
-      setLoading(false);
+    // Handle stats response
+    if (statsResponse.status === 'fulfilled' && statsResponse.value.success) {
+      const statsData = realApi.extractData(statsResponse.value) || {};
+      result.stats = { ...initialData.stats, ...statsData };
     }
-  }, [timeframe]);
 
-  useEffect(() => {
-    if (!dataLoaded) {
-      // Load cached data
-      const cachedStats = getCache('dashboard.stats', null);
-      const cachedActivity = getCache('dashboard.activity', null);
-      const cachedTop = getCache('dashboard.topProducts', null);
-      const cachedSales = getCache('dashboard.dailySales', null);
-      const cachedUpdated = getCache('dashboard.lastUpdated', null);
-
-      if (cachedStats) setStats(prev => ({ ...prev, ...cachedStats }));
-      if (cachedActivity) setRecentActivity(cachedActivity);
-      if (cachedTop) setTopProducts(cachedTop);
-      if (cachedSales) setDailySales(cachedSales);
-      if (cachedUpdated) setLastUpdated(new Date(cachedUpdated));
-
-      fetchDashboardData();
+    // Handle activity response
+    if (activityResponse.status === 'fulfilled' && activityResponse.value.success) {
+      result.recentActivity = realApi.extractData(activityResponse.value) || [];
     }
-  }, [fetchDashboardData, dataLoaded]);
+
+    // Handle products response
+    if (productsResponse.status === 'fulfilled' && productsResponse.value.success) {
+      result.topProducts = realApi.extractData(productsResponse.value) || [];
+    }
+
+    // Handle sales data
+    if (salesResponse.status === 'fulfilled' && salesResponse.value.success) {
+      const salesResponseData = realApi.extractData(salesResponse.value) || {};
+      result.dailySales = salesResponseData.revenueData || (Array.isArray(salesResponseData) ? salesResponseData : []);
+    }
+
+    return result;
+  }, initialData, [timeframe]);
+
+  const { stats, recentActivity, topProducts, dailySales, lastUpdated } = data;
+  const loading = hookLoading;
+  const error = hookError ? (hookError.message || 'Failed to load dashboard data') : null;
+
+  const fetchDashboardData = (period) => {
+    if (period && period !== timeframe) {
+      setTimeframe(period);
+      // Hook will automatically detect dependency change and refresh
+    } else {
+      refresh();
+    }
+  };
+
+  // Data load handled by hook
+  // useEffect(() => { ... }, [timeframe]);
 
   // Stats cards configuration
   const statCards = [

@@ -3,10 +3,27 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const Tables = ({ isPosMode = false }) => {
-  const [tables, setTables] = useState([]);
+  // Optimistic data fetching
+  const {
+    data: tables,
+    loading,
+    error: hookError,
+    refresh: loadTables,
+    setData: setTables // Expose setter for optimistic updates
+  } = useOptimisticData('tables_list', async () => {
+    console.log('🔄 Loading tables from backend...');
+    const response = await realApi.getTables();
+    if (response.success) {
+      return realApi.extractData(response) || [];
+    }
+    throw new Error(response.message || 'Failed to load tables');
+  }, []);
+
   const [filteredTables, setFilteredTables] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true); // Handled by hook
   const [showModal, setShowModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [editingTable, setEditingTable] = useState(null);
@@ -19,40 +36,32 @@ const Tables = ({ isPosMode = false }) => {
   const [error, setError] = useState('');
 
   const { user } = useAuth();
-  // ... (keep logic)
 
+  // Sync hook error
   useEffect(() => {
-    loadTables();
-  }, []);
+    if (hookError) setError(hookError.message);
+  }, [hookError]);
+
+  // Initial load handled by hook
+  // useEffect(() => {
+  //   loadTables();
+  // }, []);
 
   useEffect(() => {
     filterTables();
   }, [tables, filters]);
 
+  // loadTables function replaced by hook's refresh
+  /* 
   const loadTables = async () => {
     try {
       setLoading(true);
-      setError('');
-      console.log('🔄 Loading tables from backend...');
-
-      const response = await realApi.getTables();
-      console.log('📦 Backend response:', response);
-
-      if (response.success) {
-        const tablesData = realApi.extractData(response) || [];
-        console.log('✅ Tables loaded from backend:', tablesData);
-        setTables(Array.isArray(tablesData) ? tablesData : []);
-      } else {
-        throw new Error(response.message || 'Failed to load tables');
-      }
-    } catch (error) {
-      console.error('❌ Failed to load tables:', error);
-      setError('Failed to load tables: ' + error.message);
-      setTables([]);
+      // ... original logic ...
     } finally {
       setLoading(false);
     }
   };
+  */
 
   const filterTables = () => {
     let filtered = Array.isArray(tables) ? tables : [];

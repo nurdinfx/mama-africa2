@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from '../../hooks/useSocket';
 import { orderAPI } from '../../api/orders';
+import { realApi } from '../../api/realApi';
 import ProductGrid from './ProductGrid';
 import OrderCart from './OrderCart';
 import CustomerSearch from './CustomerSearch';
@@ -9,9 +10,28 @@ import CustomerSearch from './CustomerSearch';
 const POSInterface = () => {
   const [cart, setCart] = useState([]);
   const [customer, setCustomer] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [users, setUsers] = useState([]);
   const [orderType, setOrderType] = useState('dine-in');
   const [tableNumber, setTableNumber] = useState('');
+  const [vatEnabled, setVatEnabled] = useState(false);
   const { socket } = useSocket();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [usersData, customersData] = await Promise.all([
+          realApi.getUsers(),
+          realApi.getCustomers()
+        ]);
+        setUsers(realApi.extractData(usersData) || []);
+        setCustomers(realApi.extractData(customersData) || []);
+      } catch (error) {
+        console.error("Failed to fetch POS data:", error);
+      }
+    };
+    fetchData();
+  }, []);
 
   const addToCart = (product) => {
     setCart(prev => {
@@ -43,9 +63,11 @@ const POSInterface = () => {
     );
   };
 
+  const [vatEnabled, setVatEnabled] = useState(false);
+
   const calculateTotals = () => {
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const tax = subtotal * 0.1; // 10% tax - should come from settings
+    const tax = vatEnabled ? subtotal * 0.05 : 0;
     const total = subtotal + tax;
     return { subtotal, tax, total };
   };
@@ -61,18 +83,18 @@ const POSInterface = () => {
       };
 
       const order = await orderAPI.createOrder(orderData);
-      
+
       // Emit real-time update to kitchen
       socket.emit('new-order', order);
-      
+
       // Clear cart and show success
       setCart([]);
       setCustomer(null);
       setTableNumber('');
-      
+
       // Print receipt
       printReceipt(order);
-      
+
     } catch (error) {
       console.error('Failed to place order:', error);
     }
@@ -109,7 +131,7 @@ const POSInterface = () => {
       <div className="flex-1 p-4">
         <ProductGrid onAddToCart={addToCart} />
       </div>
-      
+
       {/* Order Cart */}
       <div className="w-96 bg-white shadow-lg">
         <OrderCart
@@ -123,6 +145,12 @@ const POSInterface = () => {
           onTableNumberChange={setTableNumber}
           customer={customer}
           onPlaceOrder={placeOrder}
+          vatEnabled={vatEnabled}
+          setVatEnabled={setVatEnabled}
+          onClearCart={() => setCart([])}
+          users={users}
+          customers={customers}
+          onCustomerChange={setCustomer}
         />
         <CustomerSearch onCustomerSelect={setCustomer} />
       </div>

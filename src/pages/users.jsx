@@ -3,10 +3,25 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { realApi } from '../api/realApi';
 
+import { useOptimisticData } from '../hooks/useOptimisticData';
+
 const Users = () => {
-  const [users, setUsers] = useState([]);
+  // Use optimistic data fetching
+  const {
+    data: users,
+    loading,
+    error: hookError,
+    refresh: loadUsers
+  } = useOptimisticData('users_list', async () => {
+    const response = await realApi.getUsers();
+    if (response.success) {
+      return realApi.extractData(response) || [];
+    }
+    throw new Error(response.message || 'Failed to load users');
+  }, []);
+
   const [filteredUsers, setFilteredUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true); // Handled by hook
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,37 +30,15 @@ const Users = () => {
 
   const { user: currentUser } = useAuth();
 
+  // Sync hook error to local error state if needed
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (hookError) setError(hookError.message);
+  }, [hookError]);
 
-  useEffect(() => {
-    filterUsers();
-  }, [users, searchTerm, roleFilter]);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const response = await realApi.getUsers();
-      console.log('👥 Users API response:', response);
-      
-      if (response.success) {
-        const usersData = realApi.extractData(response) || [];
-        console.log('👥 Extracted users data:', usersData.length, 'users');
-        setUsers(Array.isArray(usersData) ? usersData : []);
-      } else {
-        throw new Error(response.message || 'Failed to load users');
-      }
-    } catch (error) {
-      console.error('❌ Failed to load users:', error);
-      setError(error.message || 'Failed to load users');
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Initial load handled by hook
+  // useEffect(() => {
+  //   loadUsers();
+  // }, []);
 
   const filterUsers = () => {
     let filtered = users;
@@ -69,7 +62,7 @@ const Users = () => {
   const handleSaveUser = async (userData) => {
     try {
       let response;
-      
+
       if (editingUser) {
         response = await realApi.updateUser(editingUser._id, userData);
       } else {
@@ -93,7 +86,7 @@ const Users = () => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
         const response = await realApi.deleteUser(userId);
-        
+
         if (response.success) {
           setUsers(prev => prev.filter(u => u._id !== userId));
         } else {
@@ -109,7 +102,7 @@ const Users = () => {
   const toggleUserStatus = async (userId, currentStatus) => {
     try {
       const response = await realApi.updateUser(userId, { isActive: !currentStatus });
-      
+
       if (response.success) {
         setUsers(prev =>
           prev.map(u =>
@@ -221,67 +214,67 @@ const Users = () => {
       <div className="card p-0 overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="overflow-x-auto flex-1">
           <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredUsers.map(u => (
-              <tr key={u._id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">{u.name}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{u.username}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{u.phone}</td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(u.role)}`}>{getRoleName(u.role)}</span>
-                </td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`font-medium ${u.isActive ? 'text-green-600' : 'text-red-600'}`}>{u.isActive ? 'Active' : 'Inactive'}</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">{u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never'}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{u.createdAt ? new Date(u.createdAt).toLocaleString() : '-'}</td>
-                <td className="px-6 py-4 text-sm">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setEditingUser(u); setShowModal(true); }}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => toggleUserStatus(u._id, u.isActive)}
-                      className={`${u.isActive ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white px-3 py-1 rounded`}
-                    >
-                      {u.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                    {u._id !== currentUser?._id && (
-                      <button
-                        onClick={() => handleDeleteUser(u._id)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {filteredUsers.length === 0 && (
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan="9" className="px-6 py-12 text-center text-gray-500">No users found</td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredUsers.map(u => (
+                <tr key={u._id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{u.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{u.username}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{u.phone}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(u.role)}`}>{getRoleName(u.role)}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`font-medium ${u.isActive ? 'text-green-600' : 'text-red-600'}`}>{u.isActive ? 'Active' : 'Inactive'}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{u.createdAt ? new Date(u.createdAt).toLocaleString() : '-'}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setEditingUser(u); setShowModal(true); }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => toggleUserStatus(u._id, u.isActive)}
+                        className={`${u.isActive ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white px-3 py-1 rounded`}
+                      >
+                        {u.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      {u._id !== currentUser?._id && (
+                        <button
+                          onClick={() => handleDeleteUser(u._id)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan="9" className="px-6 py-12 text-center text-gray-500">No users found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -422,44 +415,41 @@ const UserModal = ({ user, onClose, onSave, currentUser }) => {
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className={`w-full border rounded-lg px-3 py-2 ${
-                  errors.name ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full border rounded-lg px-3 py-2 ${errors.name ? 'border-red-300' : 'border-gray-300'
+                  }`}
               />
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
             </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Username *
-            </label>
-            <input
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              className={`w-full border rounded-lg px-3 py-2 ${
-                errors.username ? 'border-red-300' : 'border-gray-300'
-              }`}
-            />
-            {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Username *
+              </label>
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 ${errors.username ? 'border-red-300' : 'border-gray-300'
+                  }`}
+              />
+              {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address *
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className={`w-full border rounded-lg px-3 py-2 ${
-                errors.email ? 'border-red-300' : 'border-gray-300'
-              }`}
-            />
-            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email Address *
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 ${errors.email ? 'border-red-300' : 'border-gray-300'
+                  }`}
+              />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -470,9 +460,8 @@ const UserModal = ({ user, onClose, onSave, currentUser }) => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className={`w-full border rounded-lg px-3 py-2 ${
-                  errors.phone ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full border rounded-lg px-3 py-2 ${errors.phone ? 'border-red-300' : 'border-gray-300'
+                  }`}
               />
               {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
             </div>
@@ -519,9 +508,8 @@ const UserModal = ({ user, onClose, onSave, currentUser }) => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className={`w-full border rounded-lg px-3 py-2 ${
-                      errors.password ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className={`w-full border rounded-lg px-3 py-2 ${errors.password ? 'border-red-300' : 'border-gray-300'
+                      }`}
                   />
                   {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
                 </div>
@@ -535,9 +523,8 @@ const UserModal = ({ user, onClose, onSave, currentUser }) => {
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className={`w-full border rounded-lg px-3 py-2 ${
-                      errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                    }`}
+                    className={`w-full border rounded-lg px-3 py-2 ${errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
+                      }`}
                   />
                   {errors.confirmPassword && (
                     <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
