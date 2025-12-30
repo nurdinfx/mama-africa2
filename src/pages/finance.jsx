@@ -25,6 +25,17 @@ const Finance = () => {
     type: ''
   });
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newTransaction, setNewTransaction] = useState({
+    date: new Date().toISOString().split('T')[0],
+    type: 'expense',
+    category: 'General',
+    amount: '',
+    paymentMethod: 'cash',
+    description: '',
+    reference: ''
+  });
+
   // Create a stable key based on filters to allow caching different views
   // Limiting to a few common combinations to avoid cache explosion could be wise, but localStorage is 5MB.
   // Let's just use a single key for "finance_dashboard" which represents the default view.
