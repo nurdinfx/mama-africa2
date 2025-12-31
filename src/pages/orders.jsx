@@ -518,7 +518,7 @@ const Orders = () => {
 
   const calculateUpdatedTotals = () => {
     const subtotal = updateOrderItems.reduce((sum, item) => sum + (item.total || item.price * item.quantity), 0);
-    const taxRate = 0.05; // 5% tax to match POS
+    const taxRate = 0.04; // 4% tax to match POS
     const tax = subtotal * taxRate;
     const finalTotal = subtotal + tax;
 
@@ -638,7 +638,7 @@ const Orders = () => {
 
     // Calculate totals
     const subtotal = order.subtotal || order.totalAmount || 0;
-    const taxAmount = order.taxAmount || order.tax || (subtotal * 0.05);
+    const taxAmount = order.tax !== undefined ? order.tax : (order.taxAmount !== undefined ? order.taxAmount : (subtotal * 0.04));
     const finalTotal = order.finalTotal || order.totalAmount || (subtotal + taxAmount);
 
     const receiptContent = `
@@ -954,7 +954,7 @@ const Orders = () => {
               <span>$${subtotal.toFixed(2)}</span>
             </div>
             <div class="total-row">
-              <span class="info-label">VAT @ 5%</span>
+              <span class="info-label">VAT @ ${subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 0}%</span>
               <span>$${taxAmount.toFixed(2)}</span>
             </div>
             <div class="total-row">

@@ -43,7 +43,7 @@ const POS = () => {
 
   // Financial State
   const [discount, setDiscount] = useState(() => getCache('pos_discount', 0));
-  const [vatPercentage, setVatPercentage] = useState(() => getCache('pos_vatPercentage', 5));
+  const [vatPercentage, setVatPercentage] = useState(() => getCache('pos_vatPercentage', 4));
   const [vatEnabled, setVatEnabled] = useState(() => getCache('pos_vatEnabled', true));
   const [tipAmount, setTipAmount] = useState(() => getCache('pos_tipAmount', 0));
 
@@ -150,7 +150,7 @@ const POS = () => {
         const settingsData = realApi.extractData(response);
         if (settingsData) {
           setSettings(settingsData);
-          setVatPercentage(settingsData.taxRate || 5);
+          setVatPercentage(settingsData.taxRate || 4);
           setCache('pos_settings', settingsData);
         }
       }
@@ -440,7 +440,6 @@ const POS = () => {
             .totals {
               margin-top: 10px;
               padding-top: 5px;
-              display: none; /* Hidden as per request for 'kitchen receipt' style unless requested otherwise */
             }
             
             /* If user wants totals, remove display:none above. 
@@ -527,7 +526,27 @@ const POS = () => {
             </tbody>
           </table>
 
-          <!-- Totals intentionally hidden/simplified for Kitchen Receipt style per request -->
+          <div class="dashed-line"></div>
+
+          <div class="totals">
+            <div class="info-row">
+              <span class="info-label">Subtotal:</span>
+              <span class="info-value">$${displaySubtotal.toFixed(2)}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">VAT @ ${isVatEnabled ? vatPercentage : 0}%:</span>
+              <span class="info-value">$${displayTax.toFixed(2)}</span>
+            </div>
+            ${displayDiscount > 0 ? `
+            <div class="info-row">
+              <span class="info-label">Discount:</span>
+              <span class="info-value">-$${displayDiscount.toFixed(2)}</span>
+            </div>` : ''}
+            <div class="info-row" style="font-size: 16px; font-weight: 700; border-top: 1px solid #000; margin-top: 5px; padding-top: 5px;">
+              <span class="info-label">TOTAL:</span>
+              <span class="info-value">$${displayTotal.toFixed(2)}</span>
+            </div>
+          </div>
            
           <div class="footer">
             <!-- <div>Thank you for visiting us!</div> -->

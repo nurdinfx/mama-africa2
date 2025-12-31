@@ -236,10 +236,10 @@ const Purchase = () => {
   }
 
   return (
-    <div className="page-content flex flex-col gap-6 h-full overflow-auto">
+    <div className="page-content flex flex-col gap-4 h-full overflow-auto p-4">
       {/* Header */}
-      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg">
-        <h1 className="heading-1 text-white">Purchase Management</h1>
+      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 shadow-lg p-4 py-3">
+        <h1 className="text-xl font-bold text-white tracking-tight">Purchase Management</h1>
       </div>
 
       {/* Error Alert */}
@@ -320,19 +320,19 @@ const Purchase = () => {
             <button
               key={module.id}
               onClick={() => setActiveView(module.id)}
-              className="bg-white hover:bg-blue-50 border border-blue-200 rounded-xl p-6 text-center transition-all duration-200 transform hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-300 group"
+              className="bg-white hover:bg-blue-50 border border-blue-200 rounded-xl p-4 text-center transition-all duration-200 transform hover:scale-105 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-300 group"
             >
-              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200">
+              <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-200">
                 {module.icon}
               </div>
-              <div className="font-semibold text-lg text-gray-800 group-hover:text-blue-700 mb-2">
+              <div className="font-semibold text-base text-gray-800 group-hover:text-blue-700 mb-1">
                 {module.title}
               </div>
-              <div className="text-sm text-gray-500 group-hover:text-blue-600 mb-3">
+              <div className="text-xs text-gray-500 group-hover:text-blue-600 mb-2 line-clamp-1">
                 {module.description}
               </div>
-              <div className="text-xs text-blue-400 font-medium">
-                Click to open →
+              <div className="text-[10px] text-blue-400 font-medium">
+                Open module →
               </div>
             </button>
           ))}
@@ -340,9 +340,9 @@ const Purchase = () => {
       </div>
 
       {/* Status Section */}
-      <div className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 shadow-sm border border-blue-200">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">System Status</h2>
+      <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 shadow-sm border border-blue-200">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">System Status</h2>
           <div className="flex items-center gap-2">
             <div className="text-sm text-gray-500">
               Real Time: {currentTime.toLocaleTimeString()}
@@ -358,17 +358,17 @@ const Purchase = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-            <div className="text-2xl font-bold text-blue-600">{purchaseModules.length}</div>
-            <div className="text-sm text-gray-600">Available Modules</div>
+          <div className="text-center p-3 bg-white rounded-lg shadow-sm border border-blue-100">
+            <div className="text-xl font-bold text-blue-600">{purchaseModules.length}</div>
+            <div className="text-xs text-gray-600">Available Modules</div>
           </div>
-          <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-            <div className="text-2xl font-bold text-green-600">🛒</div>
-            <div className="text-sm text-gray-600">Real Purchase Data</div>
+          <div className="text-center p-3 bg-white rounded-lg shadow-sm border border-blue-100">
+            <div className="text-xl font-bold text-green-600">🛒</div>
+            <div className="text-xs text-gray-600">Real Purchase Data</div>
           </div>
-          <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-            <div className="text-2xl font-bold text-purple-600">📋</div>
-            <div className="text-sm text-gray-600">Live Backend</div>
+          <div className="text-center p-3 bg-white rounded-lg shadow-sm border border-blue-100">
+            <div className="text-xl font-bold text-purple-600">📋</div>
+            <div className="text-xs text-gray-600">Live Backend</div>
           </div>
         </div>
 

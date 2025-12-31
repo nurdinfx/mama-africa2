@@ -226,7 +226,7 @@ const OrderCart = ({
 
                     {/* VAT Toggle */}
                     <div className="flex items-center gap-2 px-1">
-                        <span className="text-xs font-medium text-gray-600">Vat 5 %</span>
+                        <span className="text-xs font-medium text-gray-600">Vat 4 %</span>
                         <button
                             onClick={() => setVatEnabled(!vatEnabled)}
                             className={`w-9 h-4.5 rounded-full p-0.5 transition-colors duration-200 ease-in-out relative ${vatEnabled ? 'bg-[#4a69bd]' : 'bg-gray-400'}`}

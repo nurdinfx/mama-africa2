@@ -22,6 +22,7 @@ const Inventory = () => {
   const {
     data: products,
     loading: productsLoading,
+    isRefetching: productsRefetching,
     error: productsError,
     refresh: loadProducts
   } = useOptimisticData('inventory_products', async () => {
@@ -35,6 +36,7 @@ const Inventory = () => {
   // Categories hook
   const {
     data: categories,
+    isRefetching: categoriesRefetching,
     refresh: loadCategories
   } = useOptimisticData('inventory_categories', async () => {
     try {
@@ -52,6 +54,7 @@ const Inventory = () => {
   const [filteredProducts, setFilteredProducts] = useState([]);
   // const [loading, setLoading] = useState(true); // Replaced by hook
   const loading = productsLoading;
+  const isRefreshing = productsRefetching || categoriesRefetching;
 
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -200,7 +203,12 @@ const Inventory = () => {
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>{products.length} Products</span>
-            {loading && <Loader className="animate-spin w-3 h-3" />}
+            {(loading || isRefreshing) && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full animate-pulse border border-blue-100">
+                <Loader className="animate-spin w-3 h-3" />
+                <span className="text-[10px] font-medium uppercase tracking-tight">{loading ? 'Loading...' : 'Refreshing...'}</span>
+              </div>
+            )}
           </div>
         </div>
         <button
@@ -260,7 +268,12 @@ const Inventory = () => {
       </div>
 
       {/* Products Grid */}
-      <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50/50 rounded-xl border border-gray-200 p-4">
+      <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50/50 rounded-xl border border-gray-200 p-4 relative">
+        {isRefreshing && (
+          <div className="absolute top-0 left-0 right-0 h-1 z-10">
+            <div className="h-full bg-blue-500 animate-[loading_1.5s_infinite] origin-left"></div>
+          </div>
+        )}
         {loading && products.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>

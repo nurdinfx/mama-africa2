@@ -17,7 +17,7 @@ const Settings = () => {
     taxId: '',
 
     // POS Settings
-    taxRate: 10,
+    taxRate: 4,
     serviceCharge: 5,
     currency: 'USD',
     receiptHeader: '',
@@ -175,7 +175,7 @@ const Settings = () => {
         email: '',
         website: '',
         taxId: '',
-        taxRate: 10,
+        taxRate: 4,
         serviceCharge: 5,
         currency: 'USD',
         receiptHeader: 'Mama Africa Restaurant',
@@ -265,8 +265,8 @@ const Settings = () => {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center px-6 py-4 font-medium text-sm border-b-2 transition-colors ${activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                   }`}
               >
                 <span className="mr-2 text-lg">{tab.icon}</span>

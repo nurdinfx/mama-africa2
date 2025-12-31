@@ -120,6 +120,7 @@ const Finance = () => {
   const [filteredTransactions, setFilteredTransactions] = useState([]);
 
   const loading = hookLoading;
+  const [internalLoading, setInternalLoading] = useState(false);
   const [error, setError] = useState('');
 
   // Sync hook error
@@ -135,9 +136,7 @@ const Finance = () => {
   // Filter effects
   useEffect(() => {
     // We already have fresh data from hook based on API filters for transactions/expenses list if the API supports it.
-    // However, the original code also had client-side filtering logic:
     filterExpenses();
-    calculateStats();
     filterTransactions();
   }, [financeData, filters, txFilters.search]); // Updated dependencies
 
@@ -180,16 +179,7 @@ const Finance = () => {
     setFilteredExpenses(filtered);
   };
 
-  const calculateStats = () => {
-    const expensesArray = Array.isArray(filteredExpenses) ? filteredExpenses : [];
-    const totalExpenses = expensesArray.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-    setFinancialStats(prev => ({
-      ...prev,
-      totalExpenses,
-      netProfit: (prev.totalRevenue || 0) - totalExpenses,
-      monthlyExpenses: totalExpenses
-    }));
-  };
+  // calculateStats function removed as it's now handled by the hook's stats calculation
 
   const exportTransactionsCSV = () => {
     const rows = (filteredTransactions || []).map(t => [
@@ -214,7 +204,7 @@ const Finance = () => {
 
   const saveTransaction = async () => {
     try {
-      setLoading(true);
+      setInternalLoading(true);
       const payload = {
         date: new Date(newTransaction.date),
         type: newTransaction.type,
@@ -240,7 +230,7 @@ const Finance = () => {
     } catch (e) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      setInternalLoading(false);
     }
   };
 
@@ -531,10 +521,12 @@ const Finance = () => {
                 Cancel
               </button>
               <button
+                disabled={internalLoading}
                 onClick={saveTransaction}
-                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg"
+                className={`bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg flex items-center gap-2 ${internalLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                Save
+                {internalLoading && <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />}
+                {internalLoading ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
