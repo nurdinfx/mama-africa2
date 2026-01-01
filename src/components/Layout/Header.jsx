@@ -4,6 +4,19 @@ import { useAuth } from '../../contexts/AuthContext'; // Fixed import path
 const Header = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const [now, setNow] = React.useState(new Date());
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   React.useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -51,6 +64,16 @@ const Header = ({ toggleSidebar }) => {
             <span className="text-lg md:text-xl font-semibold leading-tight">
               Smart Restaurant & Cafe Suite
             </span>
+            {!isOnline && (
+              <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded ml-2 animate-pulse w-fit">
+                OFFLINE MODE
+              </span>
+            )}
+            {isOnline && (
+              <span className="text-xs bg-green-500/20 text-green-100 px-2 py-0.5 rounded ml-2 border border-green-400/30 w-fit hidden md:block">
+                ONLINE
+              </span>
+            )}
           </div>
         </div>
 

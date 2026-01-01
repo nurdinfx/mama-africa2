@@ -1,6 +1,7 @@
 // src/api/realApi.js
 import axios from 'axios';
 import { API_CONFIG } from '../config/api.config';
+import { dbService } from '../services/db';
 
 console.log('🔗 Initializing Real API with URL:', API_CONFIG.API_URL);
 
@@ -458,6 +459,11 @@ export const productAPI = {
     try {
       return await api.get('/products', { params });
     } catch (error) {
+      console.warn('Network request failed, trying offline DB for products');
+      const cachedProducts = await dbService.getAll('products');
+      if (cachedProducts && cachedProducts.length > 0) {
+        return { success: true, data: cachedProducts, message: 'Loaded from offline cache' };
+      }
       return handleApiError(error, 'getProducts');
     }
   },
@@ -498,6 +504,11 @@ export const productAPI = {
     try {
       return await api.get('/products/categories');
     } catch (error) {
+      console.warn('Network request failed, trying offline DB for categories');
+      const cachedCategories = await dbService.getAll('categories');
+      if (cachedCategories && cachedCategories.length > 0) {
+        return { success: true, data: cachedCategories, message: 'Loaded from offline cache' };
+      }
       return handleApiError(error, 'getCategories');
     }
   },
@@ -541,6 +552,18 @@ export const orderAPI = {
     try {
       return await api.post('/orders', data);
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline mode: Saving order to queue');
+        const tempOrder = {
+          ...data,
+          tempId: `temp_${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          status: 'pending',
+          isOffline: true
+        };
+        await dbService.put('offline_orders', tempOrder);
+        return { success: true, data: tempOrder, message: 'Order saved offline' };
+      }
       return handleApiError(error, 'createOrder');
     }
   },
@@ -600,6 +623,11 @@ export const customerAPI = {
     try {
       return await api.get('/customers', { params });
     } catch (error) {
+      console.warn('Network request failed, trying offline DB for customers');
+      const cachedCustomers = await dbService.getAll('customers');
+      if (cachedCustomers && cachedCustomers.length > 0) {
+        return { success: true, data: cachedCustomers, message: 'Loaded from offline cache' };
+      }
       return handleApiError(error, 'getCustomers');
     }
   },
@@ -738,6 +766,11 @@ export const tableAPI = {
     try {
       return await api.get('/tables', { params });
     } catch (error) {
+      console.warn('Network request failed, trying offline DB for tables');
+      const cachedTables = await dbService.getAll('tables');
+      if (cachedTables && cachedTables.length > 0) {
+        return { success: true, data: cachedTables, message: 'Loaded from offline cache' };
+      }
       return handleApiError(error, 'getTables');
     }
   },

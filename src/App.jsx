@@ -22,12 +22,42 @@ import Reports from './pages/reports';
 import CustomerDisplay from './pages/customer-display';
 import CashierHandoverReport from './pages/cashier-handover-report';
 
+import { useEffect } from 'react';
+import { syncService } from './services/SyncService';
+import { Toaster, toast } from 'react-hot-toast';
+
 function App() {
+  useEffect(() => {
+    // Initial sync
+    syncService.syncDataDown();
+    syncService.syncOfflineOrdersUp();
+
+    // Listen for online status
+    const handleOnline = () => {
+      toast.success('You are back online! Syncing data...');
+      syncService.syncDataDown();
+      syncService.syncOfflineOrdersUp();
+    };
+
+    const handleOffline = () => {
+      toast('You are offline. Working in offline mode.', { icon: '📡' });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   return (
     <Router>
       <AuthProvider>
         <SocketProvider>
           <div className="App h-full w-full">
+            <Toaster position="top-right" />
             <Routes>
               <Route path="/login" element={<Login />} />
 
