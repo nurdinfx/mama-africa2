@@ -45,6 +45,34 @@ const Orders = () => {
 
   const { user } = useAuth();
 
+  // Helper to force 4% VAT calculation on any order
+  const calculateOrderTotals = (order) => {
+    let subtotal = 0;
+
+    // 1. Try to calculate from items first (most accurate)
+    if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+      subtotal = order.items.reduce((sum, item) => {
+        const price = parseFloat(item.price) || 0;
+        const qty = parseInt(item.quantity) || 1;
+        return sum + (price * qty);
+      }, 0);
+    }
+    // 2. Fallback to stored subtotal
+    else if (order.subtotal) {
+      subtotal = parseFloat(order.subtotal);
+    }
+    // 3. Fallback to totalAmount (assuming it might be subtotal)
+    else if (order.totalAmount) {
+      subtotal = parseFloat(order.totalAmount);
+    }
+
+    // Force 4% VAT
+    const tax = subtotal * 0.04;
+    const total = subtotal + tax;
+
+    return { subtotal, tax, total };
+  };
+
   // New state for dropdown data
   const [users, setUsers] = useState([]);
   const [tables, setTables] = useState([]);
@@ -309,6 +337,9 @@ const Orders = () => {
 
     if (filters.status) {
       filtered = filtered.filter(order => order.status === filters.status);
+    } else {
+      // Hide cancelled orders by default when no specific status filter is active
+      filtered = filtered.filter(order => order.status !== 'cancelled');
     }
 
     if (filters.customer) {
@@ -363,12 +394,23 @@ const Orders = () => {
 
   const calculateSummary = () => {
     const filtered = Array.isArray(filteredOrders) ? filteredOrders : [];
-    const vat = filtered.reduce((sum, o) => sum + (o.taxAmount || 0), 0);
-    const pending = filtered.filter(o => o.paymentStatus !== 'paid');
-    const pendingAmount = pending.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0);
-    const totalAmount = filtered.reduce((sum, o) => sum + (o.finalTotal || o.totalAmount || 0), 0);
 
-    setSummary({ vat, pending: pendingAmount, totalAmount });
+    let totalVat = 0;
+    let totalPending = 0;
+    let grandTotal = 0;
+
+    filtered.forEach(order => {
+      const { tax, total } = calculateOrderTotals(order);
+
+      totalVat += tax;
+      grandTotal += total;
+
+      if (order.paymentStatus !== 'paid' && order.status !== 'cancelled') {
+        totalPending += total;
+      }
+    });
+
+    setSummary({ vat: totalVat, pending: totalPending, totalAmount: grandTotal });
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
@@ -443,6 +485,135 @@ const Orders = () => {
     } catch (error) {
       console.error('Failed to process payment:', error);
       alert(error.message || 'Failed to process payment');
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    if (window.confirm(`Are you sure you want to cancel order #${(order.orderNumber || '').split('-').pop()}?`)) {
+      try {
+        const response = await realApi.updateOrderStatus(order._id, { status: 'cancelled' });
+        if (response.success) {
+          setOrders(prev =>
+            prev.filter(o => String(o._id) !== String(order._id))
+          );
+          showNotification(`Order #${(order.orderNumber || '').split('-').pop()} cancelled successfully`);
+        } else {
+          throw new Error(response.message || 'Failed to cancel order');
+        }
+      } catch (error) {
+        console.error('Failed to cancel order:', error);
+        alert(error.message || 'Failed to cancel order');
+      }
+    }
+  };
+
+  const handleTableInvoice = () => {
+    if (!filters.table) {
+      alert('Please select a table from the dropdown first');
+      return;
+    }
+
+    const tableOrders = filteredOrders.filter(o =>
+      o.tableNumber === filters.table && o.paymentStatus !== 'paid' && o.status !== 'cancelled'
+    );
+
+    if (tableOrders.length === 0) {
+      alert(`No pending orders found for Table ${filters.table}`);
+      return;
+    }
+
+    // Print a multi-order invoice
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
+    if (!printWindow) return;
+
+    const now = new Date();
+    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const subtotal = tableOrders.reduce((sum, o) => sum + calculateOrderTotals(o).subtotal, 0);
+    const tax = subtotal * 0.04;
+    const total = subtotal + tax;
+
+    const receiptContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Table Invoice</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+            body { font-family: 'Inter', sans-serif; padding: 10px; width: 80mm; }
+            .header { text-align: center; margin-bottom: 10px; }
+            .restaurant-name { font-size: 18px; font-weight: 700; }
+            .dashed-line { border-top: 1px dashed #000; margin: 5px 0; }
+            .info-row { display: flex; justify-content: space-between; font-size: 13px; margin: 2px 0; }
+            .items-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+            .items-table th { text-align: left; border-bottom: 1px solid #000; padding: 5px 0; }
+            .items-table td { padding: 5px 0; }
+            .totals { margin-top: 10px; font-weight: 700; border-top: 1px dashed #000; padding-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="restaurant-name">Mamma Africa - Table Invoice</div>
+            <div>Table: ${filters.table}</div>
+            <div>Date: ${formattedDate}</div>
+          </div>
+          <div class="dashed-line"></div>
+          <table class="items-table">
+            <thead>
+              <tr><th>Order #</th><th style="text-align: right;">Amount</th></tr>
+            </thead>
+            <tbody>
+              ${tableOrders.map(o => `
+                <tr>
+                  <td>#${(o.orderNumber || '').split('-').pop()}</td>
+                  <td style="text-align: right;">$${(o.finalTotal || o.totalAmount || 0).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="totals">
+            <div class="info-row"><span>SUBTOTAL:</span><span>$${subtotal.toFixed(2)}</span></div>
+            <div class="info-row"><span>VAT (4%):</span><span>$${tax.toFixed(2)}</span></div>
+            <div class="info-row" style="font-size: 16px;"><span>TOTAL:</span><span>$${total.toFixed(2)}</span></div>
+          </div>
+          <script>
+            window.onload = () => { 
+              setTimeout(() => {
+                window.print(); 
+                window.onafterprint = () => window.close();
+                // Fallback for some browsers
+                setTimeout(() => window.close(), 1000);
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptContent);
+    printWindow.document.close();
+  };
+
+  const handleTablePayment = () => {
+    if (!filters.table) {
+      alert('Please select a table from the dropdown first');
+      return;
+    }
+
+    const tableOrders = filteredOrders.filter(o =>
+      o.tableNumber === filters.table && o.paymentStatus !== 'paid' && o.status !== 'cancelled'
+    );
+
+    if (tableOrders.length === 0) {
+      alert(`No unpaid orders found for Table ${filters.table}`);
+      return;
+    }
+
+    if (window.confirm(`Mark all ${tableOrders.length} orders for Table ${filters.table} as PAID?`)) {
+      tableOrders.forEach(async (order) => {
+        await processPayment(order._id, { paymentMethod: 'cash', amount: order.finalTotal || order.totalAmount });
+      });
+      showNotification(`All orders for Table ${filters.table} marked as paid`);
     }
   };
 
@@ -636,10 +807,12 @@ const Orders = () => {
     const receiptNumber = (order.orderNumber || '').split('-').pop() || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     const serverName = order.cashier?.name || order.user?.name || 'System';
 
-    // Calculate totals
-    const subtotal = order.subtotal || order.totalAmount || 0;
-    const taxAmount = order.tax !== undefined ? order.tax : (order.taxAmount !== undefined ? order.taxAmount : (subtotal * 0.04));
-    const finalTotal = order.finalTotal || order.totalAmount || (subtotal + taxAmount);
+    // Calculate totals correctly
+    const itemsSubtotal = Array.isArray(order.items)
+      ? order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0)
+      : 0;
+
+    const { subtotal, tax: taxAmount, total: finalTotal } = calculateOrderTotals(order);
 
     const receiptContent = `
       <!DOCTYPE html>
@@ -989,10 +1162,12 @@ const Orders = () => {
               });
               
               setTimeout(() => {
-                window.print();
                 window.onafterprint = function() {
                   window.close();
                 };
+                window.print();
+                // Fallback: close window after 1 second if onafterprint doesn't fire
+                setTimeout(() => window.close(), 1000);
               }, 500);
             };
           </script>
@@ -1137,8 +1312,22 @@ const Orders = () => {
             <button className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap">
               Pending Orders: {pendingOrdersCount}
             </button>
-            <button className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap">Table Payment (Inv)</button>
-            <button className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap">Table Payment</button>
+            <div className="flex items-center gap-3 ml-2 border-l border-[#4a85c5] pl-3">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-blue-200 uppercase font-bold leading-tight">Total</span>
+                <span className="text-sm font-bold whitespace-nowrap">${summary.totalAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-blue-200 uppercase font-bold leading-tight">VAT</span>
+                <span className="text-sm font-bold whitespace-nowrap">${summary.vat.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-blue-200 uppercase font-bold leading-tight">Pending</span>
+                <span className="text-sm font-bold whitespace-nowrap text-yellow-300">${summary.pending.toFixed(2)}</span>
+              </div>
+            </div>
+            <button onClick={handleTableInvoice} className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap ml-2">Table Payment (Inv)</button>
+            <button onClick={handleTablePayment} className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap">Table Payment</button>
             <Link to="/pos" className="bg-[#4caf50] hover:bg-[#43a047] text-white px-3 py-1 rounded text-xs border border-green-600 font-bold flex items-center gap-1 whitespace-nowrap">
               <span className="text-lg leading-none">+</span> Add
             </Link>
@@ -1272,12 +1461,12 @@ const Orders = () => {
                       </span>
                     </td>
                     <td className="p-2 align-top text-right text-xs font-medium text-green-600">
-                      {order.paymentStatus === 'paid' ? (order.finalTotal || order.totalAmount).toFixed(2) : '0.00'}
+                      {order.paymentStatus === 'paid' ? calculateOrderTotals(order).total.toFixed(2) : '0.00'}
                     </td>
                     <td className="p-2 align-top text-right border-r border-gray-100">
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold text-gray-800">{(order.finalTotal || order.totalAmount).toFixed(2)}</span>
-                        {order.taxAmount > 0 && <span className="text-[10px] text-gray-400">VAT: {order.taxAmount.toFixed(2)}</span>}
+                        <span className="text-xs font-bold text-gray-800">{calculateOrderTotals(order).total.toFixed(2)}</span>
+                        <span className="text-[10px] text-gray-400">VAT: {calculateOrderTotals(order).tax.toFixed(2)}</span>
                       </div>
                     </td>
                     <td className="p-2 align-top text-xs text-gray-500 italic max-w-xs truncate">
@@ -1295,7 +1484,7 @@ const Orders = () => {
                             <button onClick={() => handlePayNow(order)} className="bg-[#27ae60] hover:bg-[#219150] text-white px-2 py-1 rounded text-[10px]">Pay Now</button>
                           </>
                         )}
-                        <button className="text-red-400 hover:text-red-600 p-1"><span className="text-xs">❌</span></button>
+                        <button onClick={() => handleCancelOrder(order)} className="text-red-400 hover:text-red-600 p-1"><span className="text-xs">❌</span></button>
                       </div>
                     </td>
                   </tr>
@@ -1589,17 +1778,15 @@ const OrderModal = ({ order, onClose, onPrint, onPayNow, onUpdateOrder, onUpdate
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>{formatCurrency(order.totalAmount || order.subtotal)}</span>
+                <span>{formatCurrency(calculateOrderTotals(order).subtotal)}</span>
               </div>
-              {order.taxAmount > 0 && (
-                <div className="flex justify-between">
-                  <span>Tax:</span>
-                  <span>{formatCurrency(order.taxAmount || order.tax)}</span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span>VAT (4%):</span>
+                <span>{formatCurrency(calculateOrderTotals(order).tax)}</span>
+              </div>
               <div className="flex justify-between text-lg font-bold border-t pt-2">
                 <span>Total Amount:</span>
-                <span>{formatCurrency(order.finalTotal || order.totalAmount)}</span>
+                <span>{formatCurrency(calculateOrderTotals(order).total)}</span>
               </div>
             </div>
 
@@ -1651,7 +1838,7 @@ const UpdateOrderModal = ({ order, orderItems, availableProducts, onClose, onAdd
 
   const calculateTotals = () => {
     const subtotal = orderItems.reduce((sum, item) => sum + (item.total || item.price * item.quantity), 0);
-    const taxRate = 0.05; // 5% tax to match POS
+    const taxRate = 0.04; // 4% tax to match POS
     const tax = subtotal * taxRate;
     const finalTotal = subtotal + tax;
 

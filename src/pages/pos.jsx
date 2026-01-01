@@ -43,7 +43,7 @@ const POS = () => {
 
   // Financial State
   const [discount, setDiscount] = useState(() => getCache('pos_discount', 0));
-  const [vatPercentage, setVatPercentage] = useState(() => getCache('pos_vatPercentage', 4));
+  const [vatPercentage, setVatPercentage] = useState(4);
   const [vatEnabled, setVatEnabled] = useState(() => getCache('pos_vatEnabled', true));
   const [tipAmount, setTipAmount] = useState(() => getCache('pos_tipAmount', 0));
 
@@ -150,7 +150,7 @@ const POS = () => {
         const settingsData = realApi.extractData(response);
         if (settingsData) {
           setSettings(settingsData);
-          setVatPercentage(settingsData.taxRate || 4);
+          setVatPercentage(4);
           setCache('pos_settings', settingsData);
         }
       }
@@ -208,10 +208,10 @@ const POS = () => {
 
   const calculateTotals = () => {
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const vatAmount = vatEnabled ? subtotal * (vatPercentage / 100) : 0;
+    const vatAmount = vatEnabled ? Math.round(subtotal * (vatPercentage / 100) * 100) / 100 : 0;
     const discountAmount = discount;
     const tip = tipAmount;
-    const total = subtotal + vatAmount - discountAmount + tip;
+    const total = Math.round((subtotal + vatAmount - discountAmount + tip) * 100) / 100;
 
     return {
       subtotal,
@@ -243,7 +243,7 @@ const POS = () => {
         tableId: selectedTable,
         customerId: selectedCustomer,
         subtotal,
-        tax: vatAmount,
+        taxAmount: vatAmount,
         discount: discountAmount,
         tip: tipAmount,
         finalTotal: total,
@@ -318,9 +318,14 @@ const POS = () => {
     const isVatEnabled = overrides.vatEnabled !== undefined ? overrides.vatEnabled : true;
 
     // Base values
-    const receiptNumber = (order.orderNumber || '').split('-').pop() || Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const displaySubtotal = order.subtotal || (order.finalTotal - order.tax);
-    const displayTax = isVatEnabled ? (order.tax || 0) : 0.00;
+    // Recalculate to enforce 4% rule strictly matching frontend 
+    let displaySubtotal = order.subtotal;
+    if ((!displaySubtotal || displaySubtotal === 0) && order.items && Array.isArray(order.items)) {
+      displaySubtotal = order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+    }
+    displaySubtotal = displaySubtotal || 0;
+
+    const displayTax = isVatEnabled ? displaySubtotal * 0.04 : 0.00;
     const displayDiscount = order.discount || 0;
     const displayTip = order.tip || 0;
     const displayTotal = displaySubtotal + displayTax - displayDiscount + displayTip;
@@ -556,10 +561,12 @@ const POS = () => {
           <script>
             window.onload = function() {
               setTimeout(() => {
-                window.print();
                 window.onafterprint = function() {
                   window.close();
                 };
+                window.print();
+                // Fallback for some browsers
+                setTimeout(() => window.close(), 2000);
               }, 500);
             };
           </script>

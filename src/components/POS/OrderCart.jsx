@@ -49,7 +49,7 @@ const OrderCart = ({
                 <div className="flex items-center gap-3 text-sm flex-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
                     <div className="flex items-center gap-1">
                         <span className="text-gray-200 text-xs">Vat:</span>
-                        <span className="font-semibold text-sm">{(totals.tax || totals.vatAmount || 0).toFixed(1)}</span>
+                        <span className="font-semibold text-sm">{(totals.taxAmount || totals.tax || totals.vatAmount || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex items-center gap-1">
                         <span className="text-gray-200 text-xs">Local:</span>
