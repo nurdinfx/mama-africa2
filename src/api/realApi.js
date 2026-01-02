@@ -117,9 +117,14 @@ api.interceptors.response.use(
 
       // Handle specific status codes
       if (error.response.status === 401) {
+        // Clear tokens and notify app of logout instead of forcing a navigation here
         localStorage.removeItem('token');
         sessionStorage.removeItem('token');
-        window.location.href = '/login';
+        try {
+          window.dispatchEvent(new CustomEvent('auth.logout', { detail: { status: 401 } }));
+        } catch (e) {
+          console.warn('Failed to dispatch auth.logout event; manual logout may be required', e);
+        }
       }
     } else if (error.request) {
       errorMessage = 'No response from server. Please check if backend is running.';

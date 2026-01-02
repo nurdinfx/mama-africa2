@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
                 return cache.addAll(urlsToCache);
             })
     );
-    self.skipWaiting();
+    // self.skipWaiting(); // removed to avoid forcing activation and auto-reload
 });
 
 self.addEventListener('activate', (event) => {
@@ -32,7 +32,7 @@ self.addEventListener('activate', (event) => {
             );
         })
     );
-    self.clients.claim();
+    // self.clients.claim(); // removed to avoid forcing clients to be claimed and avoid auto-reloads
 });
 
 self.addEventListener('fetch', (event) => {
@@ -58,7 +58,12 @@ self.addEventListener('fetch', (event) => {
                         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
                         return response;
                     })
-                    .catch(() => cached);
+                    .catch(async () => {
+                        // If network fails and nothing cached, fall back to index.html for navigations
+                        // or return a 504-style Response to avoid throwing a TypeError in respondWith
+                        const fallback = await caches.match('/index.html');
+                        return fallback || new Response('Network error', { status: 504, statusText: 'Network error' });
+                    });
             })
         );
         return;
@@ -66,7 +71,12 @@ self.addEventListener('fetch', (event) => {
 
     // Fallback: network first for cross-origin resources, then cache
     event.respondWith(
-        fetch(event.request).catch(() => caches.match(event.request))
+        fetch(event.request)
+            .then(res => res)
+            .catch(async () => {
+                const cached = await caches.match(event.request);
+                return cached || new Response('Network error', { status: 504, statusText: 'Network error' });
+            })
     );
 });
 

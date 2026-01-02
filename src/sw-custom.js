@@ -9,11 +9,14 @@ async function getDB() {
 }
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  console.log('[SW] install event');
+  // Do NOT call skipWaiting automatically — let the client decide when to apply updates.
+  // The app can send a 'SKIP_WAITING' message to trigger immediate activation when appropriate.
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  console.log('[SW] activate event');
+  // Do NOT call clients.claim() automatically — avoid forcing the page to reload.
 });
 
 // Listen for background sync event
@@ -31,6 +34,8 @@ self.addEventListener('message', (event) => {
     if (data && data.type === 'OUTBOX_ENQUEUED') {
       notifyClients({ type: 'RETRY_OUTBOX' });
     }
+
+    // 'SKIP_WAITING' handling removed to avoid immediate activation/reloads; clients should reload manually if desired.
   } catch (e) {
     // ignore
   }

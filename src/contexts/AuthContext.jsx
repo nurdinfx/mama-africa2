@@ -1,5 +1,6 @@
 // src/contexts/AuthContext.jsx - OFFLINE PERSISTENCE ENABLED
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { realApi } from '../api/realApi';
 
 const AuthContext = createContext();
@@ -19,6 +20,7 @@ export const AuthProvider = ({ children }) => {
   const [backendStatus, setBackendStatus] = useState('checking');
 
   const initializedRef = useRef(false);
+  const navigate = useNavigate();
 
   // Persistence logic: We rely on local storage instead of session storage
   // to allow users to come back offline or after browser restart.
@@ -197,10 +199,14 @@ export const AuthProvider = ({ children }) => {
       console.warn('Logout API failed', e);
     }
     clearAuthData();
-    // Force reload to completely clear memory state if desired, or just navigate
-    window.location.href = '/login';
+    // Navigate to login (SPA navigation to avoid full reload)
+    try {
+      navigate('/login');
+    } catch (err) {
+      console.warn('navigate failed; unable to redirect to /login');
+    }
     return { success: true };
-  };
+  }; 
 
   const switchToDemo = async (role = 'manager') => {
     const demoToken = `demo-${role}-${Date.now()}`;
@@ -218,6 +224,21 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(true);
     return { success: true };
   };
+
+  // Listen for programmatic logout events fired by other modules (e.g., API 401 handler)
+  useEffect(() => {
+    const handler = (e) => {
+      console.log('🔔 auth.logout event received, clearing auth and redirecting to login');
+      clearAuthData();
+      try {
+        navigate('/login');
+      } catch (err) {
+        console.warn('Failed to navigate to /login after auth.logout event');
+      }
+    };
+    window.addEventListener('auth.logout', handler);
+    return () => window.removeEventListener('auth.logout', handler);
+  }, [navigate]);
 
   const value = {
     user,
