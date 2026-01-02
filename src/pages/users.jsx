@@ -40,8 +40,22 @@ const Users = () => {
     const handler = () => {
       try { loadUsers(); } catch (e) { console.warn('Failed to refresh users on update event', e); }
     };
+
+    const storageHandler = (e) => {
+      if (e.key === 'users_list') {
+        try { loadUsers(); } catch (err) { console.warn('Failed to refresh users on storage event', err); }
+      }
+    };
+
+    // In-page event for same-tab updates
     window.addEventListener('users-updated', handler);
-    return () => window.removeEventListener('users-updated', handler);
+    // Cross-tab updates trigger 'storage' events
+    window.addEventListener('storage', storageHandler);
+
+    return () => {
+      window.removeEventListener('users-updated', handler);
+      window.removeEventListener('storage', storageHandler);
+    };
   }, [loadUsers]);
 
   // Initial load handled by hook

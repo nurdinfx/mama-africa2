@@ -283,22 +283,44 @@ export const authAPI = {
         console.warn('Login network failed, attempting offline login fallback', error);
         try {
           const users = await dbService.getAll('users');
-          const found = users.find(u => u.email === identifier || u.username === identifier || u.id === identifier);
-          if (found && found.passwordHash) {
-            const { verifyPassword } = await import('../services/password');
-            const ok = await verifyPassword(password, found.passwordHash);
-            if (ok) {
-              const token = `local-${found.id}-${Date.now()}`;
-              localStorage.setItem('token', token);
-              localStorage.setItem('user', JSON.stringify({ _id: found.id, name: found.name, email: found.email, username: found.username, role: found.role }));
-              return { success: true, status: 200, data: { token, user: { _id: found.id, name: found.name, email: found.email } }, message: 'Logged in offline' };
-            }
+          console.debug('Offline users in DB:', users && users.length);
+
+          const idNormalized = (identifier || '').toString().trim().toLowerCase();
+          const found = (users || []).find(u => {
+            try {
+              const email = (u.email || '').toString().toLowerCase();
+              const username = (u.username || '').toString().toLowerCase();
+              const id = (u.id || u._id || '').toString();
+              return email === idNormalized || username === idNormalized || id === identifier;
+            } catch (e) { return false; }
+          });
+
+          if (!found) {
+            console.warn('Offline login fallback: user not found for identifier', identifier);
+            return { success: false, message: 'Offline login failed: user not found' };
+          }
+
+          if (!found.passwordHash) {
+            console.warn('Offline login fallback: user has no local password hash', found);
+            return { success: false, message: 'Offline login failed: no local password set' };
+          }
+
+          const { verifyPassword } = await import('../services/password');
+          const ok = await verifyPassword(password, found.passwordHash);
+          console.debug('Offline password verification result:', ok);
+          if (ok) {
+            const token = `local-${found._id || found.id}-${Date.now()}`;
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify({ _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role }));
+            return { success: true, status: 200, data: { token, user: { _id: found._id || found.id, name: found.name, email: found.email } }, message: 'Logged in offline' };
+          } else {
+            console.warn('Offline login fallback: password mismatch for user', found.username || found.email);
+            return { success: false, message: 'Offline login failed: invalid password' };
           }
         } catch (e) {
           console.warn('Offline login fallback failed', e);
+          return { success: false, message: 'Offline login failed: error' };
         }
-
-        return handleApiError(error, 'login');
       }
     } catch (err) {
       return handleApiError(err, 'login');
@@ -1385,11 +1407,20 @@ export const userAPI = {
           } catch (e) { console.warn('Failed to update local users cache', e); }
 
           // Enqueue an outbox entry so the server can be created when back online
+          // Verify the write and report debug info
+          try {
+            const stored = await (await import('../services/db')).dbService.get('users', id);
+            console.debug('Created local user stored in IDB:', stored);
+          } catch (e) { console.warn('Failed to verify stored user', e); }
+
           await (await import('../services/outbox')).outboxService.enqueue({
             url: (await import('../config/api.config')).API_CONFIG.API_URL + '/users',
             method: 'POST',
             body: { ...data }
           });
+
+          // Ensure other tabs and UI update
+          try { window.dispatchEvent(new Event('users-updated')); } catch (e) {}
 
           return { success: true, queued: true, data: { _id: id, ...record }, message: 'Created user locally and queued for sync' };
         } catch (e) {
