@@ -36,14 +36,36 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // For API requests, we just let them go to network (or the existing offline queue will handle them if failed, but that's handled in app logic)
-    // We only care about caching app shell assets here mostly.
+    // Navigation requests should return the app shell (index.html) when offline
+    if (event.request.mode === 'navigate' || (event.request.headers.get('accept') || '').includes('text/html')) {
+        event.respondWith(
+            fetch(event.request).catch(() => caches.match('/index.html'))
+        );
+        return;
+    }
 
-    // Network first strategy
-    event.respondWith(
-        fetch(event.request)
-            .catch(() => {
-                return caches.match(event.request);
+    const requestUrl = new URL(event.request.url);
+
+    // Cache-first for same-origin static assets
+    if (requestUrl.origin === self.location.origin) {
+        event.respondWith(
+            caches.match(event.request).then((cached) => {
+                if (cached) return cached;
+                return fetch(event.request)
+                    .then((response) => {
+                        if (!response || response.status !== 200 || response.type === 'opaque') return response;
+                        const responseClone = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+                        return response;
+                    })
+                    .catch(() => cached);
             })
+        );
+        return;
+    }
+
+    // Fallback: network first for cross-origin resources, then cache
+    event.respondWith(
+        fetch(event.request).catch(() => caches.match(event.request))
     );
 });

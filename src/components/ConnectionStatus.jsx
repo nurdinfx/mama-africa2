@@ -1,14 +1,42 @@
 // src/components/ConnectionStatus.jsx
 import React, { useState, useEffect } from 'react';
 import { realApi, testBackendConnection } from '../api/realApi';
+import { dbService } from '../services/db';
 
 const ConnectionStatus = () => {
   const [status, setStatus] = useState('checking');
   const [backendInfo, setBackendInfo] = useState(null);
+  const [queuedCount, setQueuedCount] = useState(0);
+  const [offlineOrdersCount, setOfflineOrdersCount] = useState(0);
 
   useEffect(() => {
     checkConnection();
+    updateCounts();
+
+    const handleOnlineOffline = () => {
+      checkConnection();
+      updateCounts();
+    };
+
+    window.addEventListener('online', handleOnlineOffline);
+    window.addEventListener('offline', handleOnlineOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnlineOffline);
+      window.removeEventListener('offline', handleOnlineOffline);
+    };
   }, []);
+
+  const updateCounts = async () => {
+    try {
+      const outbox = await dbService.getAll('outbox');
+      const offlineOrders = await dbService.getAll('offline_orders');
+      setQueuedCount(outbox ? outbox.length : 0);
+      setOfflineOrdersCount(offlineOrders ? offlineOrders.length : 0);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const checkConnection = async () => {
     try {
@@ -36,6 +64,13 @@ const ConnectionStatus = () => {
       {status === 'connected' && '✅ Backend Connected'}
       {status === 'failed' && '❌ Backend Offline'}
       {status === 'checking' && '🔄 Checking Connection...'}
+
+      {(queuedCount > 0 || offlineOrdersCount > 0) && (
+        <div className="mt-1 text-xs opacity-90">
+          {queuedCount > 0 && <div>📤 Queued: {queuedCount} operation(s)</div>}
+          {offlineOrdersCount > 0 && <div>🧾 Offline orders: {offlineOrdersCount}</div>}
+        </div>
+      )}
     </div>
   );
 };

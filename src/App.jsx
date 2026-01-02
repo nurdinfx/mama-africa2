@@ -25,6 +25,7 @@ import CashierHandoverReport from './pages/cashier-handover-report';
 import { useEffect } from 'react';
 import { syncService } from './services/SyncService';
 import { Toaster, toast } from 'react-hot-toast';
+import ConnectionStatus from './components/ConnectionStatus';
 
 function App() {
   useEffect(() => {
@@ -37,6 +38,7 @@ function App() {
       toast.success('You are back online! Syncing data...');
       syncService.syncDataDown();
       syncService.syncOfflineOrdersUp();
+      syncService.syncOutboxUp();
     };
 
     const handleOffline = () => {
@@ -58,6 +60,7 @@ function App() {
         <SocketProvider>
           <div className="App h-full w-full">
             <Toaster position="top-right" />
+            <ConnectionStatus />
             <Routes>
               <Route path="/login" element={<Login />} />
 

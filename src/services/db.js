@@ -24,6 +24,11 @@ export const dbService = {
                     const orderStore = db.createObjectStore('offline_orders', { keyPath: 'tempId' });
                     orderStore.createIndex('timestamp', 'timestamp');
                 }
+                // Generic outbox for queued mutating operations from the client
+                if (!db.objectStoreNames.contains('outbox')) {
+                    const outbox = db.createObjectStore('outbox', { keyPath: 'id', autoIncrement: true });
+                    outbox.createIndex('timestamp', 'timestamp');
+                }
                 // Users store
                 if (!db.objectStoreNames.contains('users')) {
                     db.createObjectStore('users', { keyPath: 'id' });

@@ -32,10 +32,19 @@ loadConfig().finally(() => {
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
           console.log('SW registered: ', registration);
+          if (registration.waiting) {
+            console.log('A new service worker is waiting to activate.');
+          }
         })
         .catch(registrationError => {
           console.log('SW registration failed: ', registrationError);
         });
+    });
+
+    // Reload when a new Service Worker takes control
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('New service worker activated, reloading the page...');
+      window.location.reload();
     });
   }
 })

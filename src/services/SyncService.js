@@ -1,4 +1,5 @@
 import { dbService } from './db';
+import { outboxService } from './outbox';
 import { productAPI, tableAPI, orderAPI, customerAPI, authAPI, supplierAPI, inventoryAPI } from '../api/realApi';
 
 export const syncService = {
@@ -86,6 +87,16 @@ export const syncService = {
             }
         } catch (error) {
             console.error('❌ Offline order sync failed:', error);
+        }
+    },
+
+    // Flush generic outbox operations to server
+    syncOutboxUp: async () => {
+        try {
+            if (!navigator.onLine) return;
+            await outboxService.flushOutbox();
+        } catch (e) {
+            console.error('❌ Outbox sync failed', e);
         }
     }
 };

@@ -6,6 +6,16 @@ import { useAuth } from '../contexts/AuthContext';
 const ProtectedRoute = ({ children, requiredRoles = [] }) => {
   const { user, loading, isAuthenticated } = useAuth();
 
+  // Show loading state while auth is initializing
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-500 mb-4"></div>
+        <p className="text-gray-500 font-medium">Checking authentication...</p>
+      </div>
+    );
+  }
+
   // FIXED: Redirect to login if not authenticated
   if (!isAuthenticated) {
     console.log('🔒 Not authenticated, redirecting to login');
