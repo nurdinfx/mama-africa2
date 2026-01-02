@@ -7,6 +7,7 @@ import { API_CONFIG } from '../config/api.config';
 import { io } from 'socket.io-client';
 import { setCache, getCache } from '../services/offlineCache';
 import { enqueue } from '../services/offlineQueue';
+import { dbService } from '../services/db'; // Import dbService
 import { Link } from 'react-router-dom';
 
 const Orders = () => {
@@ -228,30 +229,43 @@ const Orders = () => {
     try {
       // Don't set loading(true) here to allow background updates/optimistic UI
       setError('');
-      console.log('🔄 Loading orders from backend...');
+      console.log('🔄 Loading orders...');
 
-      const response = await realApi.getOrders();
-      console.log('📋 Orders API response:', response);
-
-      if (response.success) {
-        const ordersData = realApi.extractData(response) || [];
-        console.log('📋 Extracted orders data:', ordersData.length, 'orders');
-        const ordersArray = Array.isArray(ordersData) ? ordersData : [];
-        setOrders(ordersArray);
-        setCache('orders', ordersArray);
-      } else {
-        throw new Error(response.message || 'Failed to load orders');
+      // 1. Fetch Online Orders (with high limit)
+      let onlineOrders = [];
+      try {
+        const response = await realApi.getOrders({ limit: 1000 }); // Increased limit
+        if (response.success) {
+           onlineOrders = realApi.extractData(response) || [];
+           setCache('orders', onlineOrders);
+        }
+      } catch (e) {
+        console.warn('Failed to fetch online orders, using cache');
+        const cached = getCache('orders', null);
+        if (cached && Array.isArray(cached)) onlineOrders = cached;
       }
+
+      // 2. Fetch Offline Orders
+      let offlineOrders = [];
+      try {
+         offlineOrders = await dbService.getAll('offline_orders');
+      } catch (e) {
+         console.error('Failed to fetch offline orders', e);
+      }
+
+      // 3. Merge Orders (Offline first)
+      const allOrders = [...offlineOrders, ...onlineOrders];
+      
+      // Deduplicate by ID just in case
+      const uniqueOrders = Array.from(new Map(allOrders.map(item => [item._id || item.tempId, item])).values());
+      
+      // Sort by date (newest first)
+      uniqueOrders.sort((a, b) => new Date(b.createdAt || b.orderDate || 0) - new Date(a.createdAt || a.orderDate || 0));
+
+      setOrders(uniqueOrders);
     } catch (error) {
       console.error('❌ Failed to load orders:', error);
-      setError(error.message || 'Failed to load orders');
-      const cached = getCache('orders', null);
-      if (cached && Array.isArray(cached)) {
-        console.log('📦 Using cached orders:', cached.length);
-        setOrders(cached);
-      } else {
-        setOrders([]);
-      }
+      setError('Failed to load orders');
     } finally {
       setLoading(false);
     }

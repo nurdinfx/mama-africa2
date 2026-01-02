@@ -15,7 +15,7 @@ const Login = () => {
   const [activeTab, setActiveTab] = useState('login'); // 'login' or 'quick'
   const [showPassword, setShowPassword] = useState(false);
 
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, isAuthenticated, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,6 +31,12 @@ const Login = () => {
     try {
       console.log('🚀 Pre-fetching dashboard data for instant load...');
       const timeframe = 'today';
+
+      // Check online status before fetching
+      if (!navigator.onLine) {
+        console.log('📡 Offline: skipping dashboard pre-fetch');
+        return;
+      }
 
       const [statsResponse, activityResponse, productsResponse, salesResponse] = await Promise.allSettled([
         realApi.getStats(timeframe),
@@ -123,6 +129,16 @@ const Login = () => {
     if (error) setError('');
   };
 
+  // Loading state (initializing auth from persistence)
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black/90 text-white">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-4"></div>
+        <h2 className="text-xl font-bold tracking-wider">Initializing System...</h2>
+      </div>
+    );
+  }
+
   if (isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -137,7 +153,7 @@ const Login = () => {
         <div className="relative z-10 flex flex-col items-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-white mb-4"></div>
           <h2 className="text-2xl font-bold text-white">Welcome, {user?.name}</h2>
-          <p className="text-white/70">Initializing POS System...</p>
+          <p className="text-white/70">Resuming Session...</p>
         </div>
       </div>
     );
