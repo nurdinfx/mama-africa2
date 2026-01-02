@@ -35,6 +35,15 @@ const Users = () => {
     if (hookError) setError(hookError.message);
   }, [hookError]);
 
+  // Listen for local changes to users (so offline-created users show up immediately)
+  useEffect(() => {
+    const handler = () => {
+      try { loadUsers(); } catch (e) { console.warn('Failed to refresh users on update event', e); }
+    };
+    window.addEventListener('users-updated', handler);
+    return () => window.removeEventListener('users-updated', handler);
+  }, [loadUsers]);
+
   // Initial load handled by hook
   // useEffect(() => {
   //   loadUsers();
@@ -161,6 +170,11 @@ const Users = () => {
           <div>
             <h1 className="heading-1 text-white mb-2">Users Management</h1>
             <p className="text-blue-100">Manage system users and permissions</p>
+            {!navigator.onLine && (
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg text-sm">
+                You are <strong>offline</strong>. New users created here will be stored locally and can sign in on this device. They'll sync with the server when online.
+              </div>
+            )}
             {error && (
               <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
                 {error}
@@ -422,6 +436,11 @@ const UserModal = ({ user, onClose, onSave, currentUser }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!navigator.onLine && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg text-sm">
+                <strong>Offline:</strong> You're offline. Creating this user will store the account locally — they can sign in on this device while offline. The account will sync to the server when the device reconnects.
+              </div>
+            )
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name *

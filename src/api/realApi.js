@@ -318,6 +318,7 @@ export const authAPI = {
           const pwdHash = userData.password ? await hashPassword(userData.password) : null;
           const record = {
             id,
+            _id: id,
             name: userData.name || (userData.fullName || userData.username),
             email: userData.email || userData.username,
             username: userData.username || userData.email,
@@ -326,7 +327,32 @@ export const authAPI = {
             createdAt: new Date().toISOString(),
             isLocal: true
           };
+
+          // Persist to IDB
           await dbService.put('users', record);
+
+          // Update local users cache (use optimistic localStorage update so UI reflects change immediately)
+          try {
+            const key = 'users_list';
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw);
+                const arr = Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed) ? parsed : []);
+                const next = [{ _id: id, ...record }, ...arr];
+                localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: next }));
+              } catch (e) {
+                // If parse failed, set new wrapper
+                localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: [{ _id: id, ...record }] }));
+              }
+            } else {
+              localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: [{ _id: id, ...record }] }));
+            }
+
+            // Notify listeners in this window
+            try { window.dispatchEvent(new Event('users-updated')); } catch (e) { /* ignore */ }
+          } catch (e) { console.warn('Failed to update local users cache', e); }
+
           return { success: true, status: 201, data: { user: { _id: id, ...record } }, message: 'Registered offline' };
         } catch (e) {
           console.warn('Local registration failed', e);
@@ -1338,6 +1364,25 @@ export const userAPI = {
             isLocal: true
           };
           await (await import('../services/db')).dbService.put('users', record);
+
+          // Update local users cache so UI updates immediately
+          try {
+            const key = 'users_list';
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw);
+                const arr = Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed) ? parsed : []);
+                const next = [{ _id: id, ...record }, ...arr];
+                localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: next }));
+              } catch (e) {
+                localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: [{ _id: id, ...record }] }));
+              }
+            } else {
+              localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: [{ _id: id, ...record }] }));
+            }
+            try { window.dispatchEvent(new Event('users-updated')); } catch (e) { }
+          } catch (e) { console.warn('Failed to update local users cache', e); }
 
           // Enqueue an outbox entry so the server can be created when back online
           await (await import('../services/outbox')).outboxService.enqueue({
