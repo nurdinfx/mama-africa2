@@ -30,10 +30,18 @@ const loadConfig = async () => {
 }
 
 // Load config first, then render the app
-loadConfig().finally(() => {
+loadConfig().finally(async () => {
   renderApp()
 
-  // Service worker registration removed to avoid automatic reloads/updates.
+  // Ensure DB seeded after first render
+  try {
+    const { ensureSeeded } = await import('./services/offlineInit');
+    ensureSeeded().then((r) => console.log('Offline seed status:', r));
+  } catch (e) {
+    console.warn('Failed to ensure DB seeded', e);
+  }
+
+  // Service worker registration is handled below
 })
 
 // Process offline queue when back online
@@ -49,14 +57,40 @@ if (typeof window !== 'undefined') {
   })
 }
 
-// Unregister any existing service workers and clear their caches to prevent automatic reloads
+// Register a service worker to enable full offline PWA behavior and handle updates
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((regs) => {
-    for (const reg of regs) {
-      try { reg.unregister(); } catch (e) { console.warn('Failed to unregister SW:', e); }
-    }
-    if (window.caches && window.caches.keys) {
-      window.caches.keys().then((keys) => Promise.all(keys.map((k) => window.caches.delete(k))).catch(() => {}));
-    }
-  }).catch((e) => console.warn('Failed to get SW registrations:', e));
+  // Register after load to avoid blocking initial render
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      console.log('✅ Service Worker registered:', reg);
+
+      // If there's an already waiting SW, notify clients about update
+      if (reg.waiting) {
+        try { reg.waiting.postMessage({ type: 'NEW_VERSION_AVAILABLE' }); } catch (e) {}
+      }
+
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed') {
+            if (navigator.serviceWorker.controller) {
+              // New update available
+              try { reg.waiting.postMessage({ type: 'NEW_VERSION_AVAILABLE' }); } catch (e) {}
+            } else {
+              console.log('✅ Content is cached for offline use.');
+            }
+          }
+        });
+      });
+    }).catch((err) => console.warn('Service Worker registration failed:', err));
+
+    // Listen for incoming SW messages (e.g., updates)
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      const data = e.data || {};
+      if (data && data.type === 'NEW_VERSION_AVAILABLE') {
+        console.log('🔔 New app version available. You may refresh to update.');
+        // Optionally, trigger a UI notification to let user refresh gracefully
+      }
+    });
+  });
 }

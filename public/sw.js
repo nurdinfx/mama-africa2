@@ -6,7 +6,18 @@ const urlsToCache = [
     '/manifest.json',
     '/logo.png',
     '/pwa-192x192.png',
-    '/pwa-512x512.png'
+    '/pwa-512x512.png',
+    '/offline-seed.json', // initial data snapshot for fresh installs
+    // Pre-cache commonly used routes so they are available offline immediately
+    '/pos',
+    '/products',
+    '/inventory',
+    '/orders',
+    '/settings',
+    '/purchases',
+    '/suppliers',
+    '/expenses',
+    '/finance'
 ];
 
 self.addEventListener('install', (event) => {
@@ -15,6 +26,14 @@ self.addEventListener('install', (event) => {
             .then((cache) => {
                 // console.log('Opened cache');
                 return cache.addAll(urlsToCache);
+            }).then(async () => {
+                // If there are already open clients, this is an update; notify them
+                try {
+                    const allClients = await self.clients.matchAll({ type: 'window' });
+                    if (allClients && allClients.length) {
+                        allClients.forEach(c => c.postMessage({ type: 'NEW_VERSION_AVAILABLE' }));
+                    }
+                } catch (e) { /* ignore */ }
             })
     );
     // self.skipWaiting(); // removed to avoid forcing activation and auto-reload
@@ -32,52 +51,162 @@ self.addEventListener('activate', (event) => {
             );
         })
     );
-    // self.clients.claim(); // removed to avoid forcing clients to be claimed and avoid auto-reloads
+    // Let this service worker take control immediately once activated so the app runs fully offline
+    try { self.clients.claim(); } catch (e) { /* some browsers may throw here */ }
 });
 
 self.addEventListener('fetch', (event) => {
+    const request = event.request;
+
     // Navigation requests should return the app shell (index.html) when offline
-    if (event.request.mode === 'navigate' || (event.request.headers.get('accept') || '').includes('text/html')) {
+    if (request.mode === 'navigate' || (request.headers.get('accept') || '').includes('text/html')) {
         event.respondWith(
-            fetch(event.request).catch(() => caches.match('/index.html'))
+            fetch(request).then((res) => {
+                // Keep a cached copy of index.html up-to-date
+                if (res && res.status === 200) {
+                    const clone = res.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone));
+                }
+                return res;
+            }).catch(() => caches.match('/index.html'))
         );
         return;
     }
 
-    const requestUrl = new URL(event.request.url);
+    const requestUrl = new URL(request.url);
 
-    // Cache-first for same-origin static assets
+    // Utility to prune cache size (simple FIFO prune based on cache.keys())
+    async function pruneCache(cacheName, maxEntries) {
+        try {
+            const cache = await caches.open(cacheName);
+            const keys = await cache.keys();
+            if (keys.length <= maxEntries) return;
+            // Remove oldest entries first
+            const removeCount = keys.length - maxEntries;
+            for (let i = 0; i < removeCount; i++) {
+                try { await cache.delete(keys[i]); } catch (e) { /* ignore individual errors */ }
+            }
+        } catch (e) { /* ignore prune errors */ }
+    }
+
+    // Expose a message to request the SW to prune its cache to a specific maximum entries count
+    if (requestUrl.pathname === '/__sw_prune' && request.method === 'POST') {
+        event.respondWith((async () => {
+            try {
+                const reqClone = request.clone();
+                const body = await reqClone.json().catch(() => ({}));
+                const maxEntries = body.maxEntries || 200;
+                await pruneCache(CACHE_NAME, maxEntries);
+                return new Response(JSON.stringify({ success: true, message: 'Pruned' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            } catch (e) {
+                return new Response(JSON.stringify({ success: false, error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+            }
+        })());
+        return;
+    }
+
+    // API GET requests — network first, then cache fallback
+    if (requestUrl.pathname.startsWith('/api') && request.method === 'GET') {
+        event.respondWith(
+            fetch(request).then(async (res) => {
+                if (res && res.status === 200) {
+                    const clone = res.clone();
+                    const cache = await caches.open(CACHE_NAME);
+                    await cache.put(request, clone);
+                    // prune API/cache entries to avoid unbounded growth
+                    await pruneCache(CACHE_NAME, 300);
+                }
+                return res;
+            }).catch(async () => {
+                const cached = await caches.match(request);
+                if (cached) return cached;
+                return new Response(JSON.stringify({ success: false, message: 'Offline' }), {
+                    status: 503,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            })
+        );
+        return;
+    }
+
+    // Same-origin static assets: cache-first then network-and-cache
     if (requestUrl.origin === self.location.origin) {
         event.respondWith(
-            caches.match(event.request).then((cached) => {
+            caches.match(request).then((cached) => {
                 if (cached) return cached;
-                return fetch(event.request)
-                    .then((response) => {
-                        if (!response || response.status !== 200 || response.type === 'opaque') return response;
-                        const responseClone = response.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-                        return response;
-                    })
-                    .catch(async () => {
-                        // If network fails and nothing cached, fall back to index.html for navigations
-                        // or return a 504-style Response to avoid throwing a TypeError in respondWith
-                        const fallback = await caches.match('/index.html');
-                        return fallback || new Response('Network error', { status: 504, statusText: 'Network error' });
-                    });
+                return fetch(request).then((response) => {
+                    if (!response || response.status !== 200 || response.type === 'opaque') return response;
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then(async (cache) => {
+                        await cache.put(request, responseClone);
+                        // prune static cache entries (keep a reasonable limit)
+                        await pruneCache(CACHE_NAME, 400);
+                    }).catch(() => {});
+                    return response;
+                }).catch(() => {
+                    return new Response('Offline', { status: 504, statusText: 'Offline' });
+                });
             })
         );
         return;
     }
 
-    // Fallback: network first for cross-origin resources, then cache
+    // Cross-origin requests: network first with cache fallback
     event.respondWith(
-        fetch(event.request)
-            .then(res => res)
-            .catch(async () => {
-                const cached = await caches.match(event.request);
-                return cached || new Response('Network error', { status: 504, statusText: 'Network error' });
-            })
+        fetch(request).catch(async () => {
+            const cached = await caches.match(request);
+            return cached || new Response('Network error', { status: 504, statusText: 'Network error' });
+        })
     );
+});
+
+// Allow clients to ask the SW to skipWaiting (apply update) and notify clients on new versions
+self.addEventListener('message', (event) => {
+  if (!event.data) return;
+
+  // Apply update immediately when requested by client
+  if (event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+
+  // Cache a list of URLs on demand (used by admin 'Download Full Offline Cache')
+  if (event.data.type === 'CACHE_URLS' && Array.isArray(event.data.urls)) {
+    const urls = event.data.urls;
+    // Notify clients of progress as we cache items
+    event.waitUntil((async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const clientsList = await self.clients.matchAll({ type: 'window' });
+        let done = 0;
+
+        for (let i = 0; i < urls.length; i++) {
+          const url = urls[i];
+          try {
+            const res = await fetch(url);
+            if (res && res.status === 200) {
+              try {
+                await cache.put(url, res.clone());
+              } catch (e) {
+                // put may fail for opaque responses or cross-origin restrictions
+              }
+            }
+            done++;
+            clientsList.forEach(c => c.postMessage({ type: 'CACHE_PROGRESS', total: urls.length, done, url }));
+          } catch (err) {
+            // Report error but continue
+            clientsList.forEach(c => c.postMessage({ type: 'CACHE_PROGRESS', total: urls.length, done, url, error: true }));
+          }
+        }
+
+        // Final notification
+        clientsList.forEach(c => c.postMessage({ type: 'CACHE_COMPLETE', total: urls.length, done }));
+      } catch (err) {
+        const clientsList = await self.clients.matchAll({ type: 'window' });
+        clientsList.forEach(c => c.postMessage({ type: 'CACHE_ERROR', message: err.message }));
+      }
+    })());
+  }
 });
 
 // Background Sync handler: flush outbox when 'outbox-sync' event fires

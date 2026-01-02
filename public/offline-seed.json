@@ -1,0 +1,16 @@
+{
+  "products": [],
+  "categories": [],
+  "tables": [],
+  "customers": [],
+  "purchases": [],
+  "purchase_orders": [],
+  "suppliers": [],
+  "expenses": [],
+  "transactions": [],
+  "inventory": [],
+  "meta": {
+    "generatedAt": "2026-01-02T00:00:00.000Z",
+    "note": "Add production data here if you want fresh installs to have initial data. This file will be used by the service worker and the client to populate IndexedDB on first run."
+  }
+}

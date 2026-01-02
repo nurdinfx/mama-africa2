@@ -74,7 +74,57 @@ const Settings = () => {
   const [loading, setLoading] = useState(false); // Action loading state
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  // Download/caching progress
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ done: 0, total: 0, message: '' });
+
+  // Storage quota UI state
+  const [storageUsage, setStorageUsage] = useState({ db: 0, cache: 0, total: 0 });
+  const [maxCacheMB, setMaxCacheMB] = useState(200);
+  const [freeing, setFreeing] = useState(false);
+
   // const [initialLoad, setInitialLoad] = useState(true); // Handled by hook
+
+  const handleDownloadFullCache = async () => {
+    if (!navigator.onLine) return alert('You must be online to download the full cache.');
+    setDownloading(true);
+    setDownloadProgress({ done: 0, total: 0, message: 'Starting...' });
+    try {
+      const mod = await import('../services/offlineInit');
+      if (!mod || !mod.downloadFullCache) throw new Error('downloadFullCache not available');
+
+      // Subscribe to SW messages for progress
+      const onMsg = (e) => {
+        if (!e.data) return;
+        if (e.data.type === 'CACHE_PROGRESS') {
+          setDownloadProgress(prev => ({ ...prev, total: e.data.total || prev.total, done: e.data.done || prev.done, message: `Caching ${e.data.url || ''}` }));
+        }
+        if (e.data.type === 'CACHE_COMPLETE') {
+          setDownloadProgress(prev => ({ ...prev, done: e.data.done || prev.done, total: e.data.total || prev.total, message: 'Cache complete' }));
+        }
+        if (e.data.type === 'CACHE_ERROR') {
+          setDownloadProgress(prev => ({ ...prev, message: 'Cache error: ' + (e.data.message || '') }));
+        }
+      };
+
+      navigator.serviceWorker && navigator.serviceWorker.addEventListener && navigator.serviceWorker.addEventListener('message', onMsg);
+
+      await mod.downloadFullCache((p) => setDownloadProgress(p));
+
+      // Wait briefly for SW to finish caching messages
+      await new Promise(r => setTimeout(r, 800));
+
+      navigator.serviceWorker && navigator.serviceWorker.removeEventListener && navigator.serviceWorker.removeEventListener('message', onMsg);
+
+      alert('Full offline cache downloaded. The app should now work offline for most pages.');
+    } catch (err) {
+      console.error('Download failed', err);
+      alert('Download failed: ' + (err.message || err));
+    } finally {
+      setDownloading(false);
+      setTimeout(() => setDownloadProgress({ done: 0, total: 0, message: '' }), 3000);
+    }
+  };
 
   const { user } = useAuth();
 
@@ -169,18 +219,23 @@ const Settings = () => {
   const handleResetDefaults = async () => {
     if (window.confirm('Are you sure you want to reset all settings to defaults? This action cannot be undone.')) {
       const defaultSettings = {
+        // General Settings
         restaurantName: 'Mama Africa Restaurant',
         address: '',
         phone: '',
         email: '',
         website: '',
         taxId: '',
+
+        // POS Settings
         taxRate: 4,
         serviceCharge: 5,
         currency: 'USD',
         receiptHeader: 'Mama Africa Restaurant',
         receiptFooter: 'Thank you for dining with us!',
         receiptSize: '58mm',
+
+        // Business Hours
         businessHours: {
           monday: { open: '09:00', close: '22:00', closed: false },
           tuesday: { open: '09:00', close: '22:00', closed: false },
@@ -190,6 +245,8 @@ const Settings = () => {
           saturday: { open: '10:00', close: '23:00', closed: false },
           sunday: { open: '10:00', close: '21:00', closed: false }
         },
+
+        // System Settings
         autoBackup: true,
         lowStockAlert: true,
         orderNotifications: true,
@@ -198,8 +255,50 @@ const Settings = () => {
         timezone: 'UTC-5'
       };
 
+      // Continue reset as before
       setSettings(defaultSettings);
       await handleSaveSettings();
+    }
+  };
+
+  // Storage quota helpers
+  const loadStorageUsage = async () => {
+    try {
+      const mod = await import('../services/storageQuota');
+      const dbInfo = await mod.estimateIndexedDBSize();
+      const cacheInfo = await mod.estimateCacheSize();
+      const total = (dbInfo.total || 0) + (cacheInfo.total || 0);
+      setStorageUsage({ db: dbInfo.total, cache: cacheInfo.total, total });
+    } catch (e) {
+      console.warn('Failed to load storage usage', e);
+    }
+  };
+
+  useEffect(() => { loadStorageUsage(); }, []);
+
+  const handleFreeSpace = async () => {
+    if (!window.confirm(`Free up space to ${maxCacheMB} MB? This will delete older cached data.`)) return;
+    setFreeing(true);
+    try {
+      const mod = await import('../services/storageQuota');
+      const targetBytes = maxCacheMB * 1024 * 1024;
+
+      // Evict DB entries
+      const dbEvictRes = await mod.evictIndexedDBToLimit(targetBytes);
+
+      // Evict cache entries approximately based on entries count (keep at most computed entries)
+      const approxEntrySize = 50 * 1024; // assume 50KB per cached entry
+      const maxEntries = Math.max(20, Math.floor(targetBytes / approxEntrySize));
+      const cacheRes = await mod.evictCacheToEntries(maxEntries);
+
+      await loadStorageUsage();
+
+      alert('Free up completed. Freed DB: ' + (dbEvictRes.freed ? mod.humanBytes(dbEvictRes.freed) : '0') + '\nCache: removed ' + (cacheRes.removed || 0) + ' entries');
+    } catch (e) {
+      console.error('Free space failed', e);
+      alert('Free space failed: ' + e.message);
+    } finally {
+      setFreeing(false);
     }
   };
 
@@ -663,6 +762,40 @@ const SystemSettings = ({ settings, onChange, onClearCache, onBackupDatabase, on
             Backup Database
           </button>
           <button
+            onClick={handleDownloadFullCache}
+            disabled={loading || downloading}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          >
+            {downloading ? `Downloading... (${downloadProgress.done}/${downloadProgress.total || '…'})` : 'Download Full Offline Cache'}
+          </button>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-sm text-slate-600">Storage used (approx.)</div>
+                <div className="text-lg font-medium">{(storageUsage.total / (1024*1024)).toFixed(2)} MB</div>
+                <div className="text-sm text-muted">DB: {(storageUsage.db / (1024*1024)).toFixed(2)} MB · Cache: {(storageUsage.cache / (1024*1024)).toFixed(2)} MB</div>
+              </div>
+              <div className="text-right">
+                <label className="block text-sm text-slate-600 mb-1">Target total cache</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" min="50" value={maxCacheMB} onChange={(e) => setMaxCacheMB(Number(e.target.value))} className="w-20 border px-2 py-1 rounded" />
+                  <button onClick={handleFreeSpace} disabled={freeing} className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white px-3 py-1 rounded text-sm">{freeing ? 'Freeing...' : 'Free Up Space'}</button>
+                </div>
+              </div>
+            </div>
+            {storageUsage.total > 0 && (
+              <div className="text-xs text-slate-500 mt-2">Tip: Increasing 'Target total cache' lets the app keep more offline data, but may use more device storage.</div>
+            )}
+
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2">Conflict Resolution</h4>
+              <div className="text-sm text-slate-600 mb-2">If the server rejects an offline write due to a conflict, it will appear below for manual resolution.</div>
+              <ConflictManager />
+            </div>
+          </div>
+
+          <button
             onClick={onResetDefaults}
             disabled={loading}
             className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium"
@@ -676,3 +809,6 @@ const SystemSettings = ({ settings, onChange, onClearCache, onBackupDatabase, on
 };
 
 export default Settings;
+
+// Lazy load Conflict Manager component to avoid increasing main chunk size
+import('../components/Conflicts/ConflictManager.jsx').catch(() => {});

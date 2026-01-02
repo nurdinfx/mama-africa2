@@ -106,11 +106,51 @@ export const outboxService = {
 
           if (res && res.ok) {
             const json = await res.json();
-            // Remove all items if server processed them (we don't inspect results deeply here)
-            for (const it of items) {
-              await this.remove(it.id);
+            // json.results expected to be an array aligned with operations
+            if (Array.isArray(json.results)) {
+              for (let i = 0; i < json.results.length; i++) {
+                const result = json.results[i];
+                const original = items[i];
+                // If success, remove corresponding outbox item
+                if (result && result.success) {
+                  await this.remove(original.id);
+                } else {
+                  // If conflict, store in conflicts DB for manual resolution and remove outbox item
+                  const isConflict = result && (result.code === 'CONFLICT' || result.status === 409 || result.conflict === true);
+                  if (isConflict) {
+                    try {
+                      await dbService.put('conflicts', {
+                        type: 'outbox',
+                        url: original.url,
+                        method: original.method,
+                        resource: original.url.replace(/^\/api\/v1\//, '').split('/')[0],
+                        local: original.body,
+                        server: result.data || result.server || result.record || null,
+                        timestamp: Date.now(),
+                        status: 'pending'
+                      });
+                      await this.remove(original.id);
+                      // Notify clients
+                      try { if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'CONFLICT_DETECTED' }); } catch (e) {}
+                    } catch (e) { console.warn('Failed to store conflict', e); }
+                  }
+                }
+              }
+            } else {
+              // If results not present, remove items and proceed
+              for (const it of items) {
+                await this.remove(it.id);
+              }
             }
-            console.log(`✅ Batched ${items.length} outbox items via /sync`);
+
+            console.log(`✅ Processed ${items.length} outbox items via /sync`);
+
+            // Trigger a data sync to refresh local DB with authoritative server ids/state
+            try {
+              const { syncService } = await import('./SyncService');
+              syncService.syncDataDown();
+            } catch (e) { console.warn('Failed to trigger data sync after flush', e); }
+
             return;
           } else {
             console.warn('Batch sync failed or rejected, falling back to individual flush');
@@ -132,7 +172,33 @@ export const outboxService = {
             await this.remove(item.id);
             console.log(`✅ Flushed outbox item ${item.id}`);
           } else {
-            // 4xx/5xx response: log and remove to avoid blocking; you may want to move to a failed store instead
+            const status = res ? res.status : null;
+            let json = null;
+            try { json = res ? await res.clone().json() : null; } catch (e) { /* ignore */ }
+
+            // Detect conflict cases (409 or explicit conflict code)
+            const isConflict = status === 409 || (json && (json.code === 'CONFLICT' || json.conflict === true));
+            if (isConflict) {
+              try {
+                await dbService.put('conflicts', {
+                  type: 'outbox',
+                  url: item.url,
+                  method: item.method,
+                  resource: item.url.replace(/^\/api\/v1\//, '').split('/')[0],
+                  local: item.body,
+                  server: json && (json.data || json.server || json.record) || null,
+                  timestamp: Date.now(),
+                  status: 'pending'
+                });
+                await this.remove(item.id);
+                try { if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'CONFLICT_DETECTED' }); } catch (e) {}
+                continue; // Move to next item
+              } catch (e) {
+                console.warn('Failed to store conflict', e);
+              }
+            }
+
+            // Other server errors: log and remove to avoid blocking (may be improved to 'failed' queue)
             const text = res ? await res.text() : 'no response';
             console.error(`❌ Server rejected outbox item ${item.id}:`, text);
             await this.remove(item.id);
@@ -143,6 +209,12 @@ export const outboxService = {
           break;
         }
       }
+
+      // After processing individual items, attempt a full data sync to reconcile IDs/state
+      try {
+        const { syncService } = await import('./SyncService');
+        syncService.syncDataDown();
+      } catch (e) { console.warn('Failed to trigger data sync after individual flush', e); }
     } catch (err) {
       console.error('Failed to flush outbox', err);
     }
