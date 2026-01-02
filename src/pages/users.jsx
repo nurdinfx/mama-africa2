@@ -70,6 +70,9 @@ const Users = () => {
       }
 
       if (response.success) {
+        if (response.queued) {
+          alert(response.message || 'User saved locally and will sync when online');
+        }
         await loadUsers(); // Reload users to get updated data
         setShowModal(false);
         setEditingUser(null);
@@ -230,7 +233,20 @@ const Users = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredUsers.map(u => (
                 <tr key={u._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{u.name}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <span>{u.name}</span>
+                      {u.isLocal && (
+                        <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">Local</span>
+                      )}
+                      {u.isOfflineUpdate && (
+                        <span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800">Pending</span>
+                      )}
+                      {u.isDeleted && (
+                        <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">Deleted</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{u.username}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{u.phone}</td>

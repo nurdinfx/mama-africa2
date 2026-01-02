@@ -103,13 +103,14 @@ const Tables = ({ isPosMode = false }) => {
           // Update existing table in local state
           setTables(prev => prev.map(t =>
             t._id === editingTable._id
-              ? { ...t, ...tableData, updatedAt: new Date().toISOString() }
+              ? { ...t, ...tableData, updatedAt: new Date().toISOString(), isOfflineUpdate: response.queued ? true : t.isOfflineUpdate }
               : t
           ));
         } else {
           // Add new table to local state with proper structure
           const newTable = {
             _id: response.data?._id || `table-${Date.now()}`,
+            id: response.data?.id || response.data?._id || `table-${Date.now()}`,
             number: tableData.tableNumber,
             tableNumber: tableData.tableNumber,
             name: tableData.name,
@@ -118,6 +119,7 @@ const Tables = ({ isPosMode = false }) => {
             status: 'available',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            isLocal: response.queued ? true : false,
             ...response.data // Include any additional data from backend
           };
           setTables(prev => [...prev, newTable]);
@@ -125,7 +127,7 @@ const Tables = ({ isPosMode = false }) => {
 
         setShowModal(false);
         setEditingTable(null);
-        alert(`Table ${editingTable ? 'updated' : 'created'} successfully!`);
+        if (response.queued) alert(response.message || 'Table saved locally and will sync when online'); else alert(`Table ${editingTable ? 'updated' : 'created'} successfully!`);
       } else {
         throw new Error(response.message || 'Failed to save table');
       }
@@ -179,9 +181,14 @@ const Tables = ({ isPosMode = false }) => {
         const response = await realApi.deleteTable(tableId);
 
         if (response.success) {
-          // Remove from local state immediately
-          setTables(prev => prev.filter(t => t._id !== tableId));
-          alert('Table deleted successfully!');
+          // If queued (offline), mark as deleted locally; otherwise remove
+          if (response.queued) {
+            setTables(prev => prev.map(t => t._id === tableId ? { ...t, isDeleted: true } : t));
+            alert(response.message || 'Table delete queued (offline)');
+          } else {
+            setTables(prev => prev.filter(t => t._id !== tableId));
+            alert('Table deleted successfully!');
+          }
         } else {
           throw new Error(response.message || 'Failed to delete table');
         }
@@ -428,7 +435,18 @@ const Tables = ({ isPosMode = false }) => {
             {/* Table Info */}
             <div className="text-left mb-4">
               <h3 className="text-xl font-bold text-gray-900">
-                {table.name || `Table ${table.number || table.tableNumber}`}
+                <div className="flex items-center gap-2">
+                  <span>{table.name || `Table ${table.number || table.tableNumber}`}</span>
+                  {table.isLocal && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">Local</span>
+                  )}
+                  {table.isOfflineUpdate && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800">Pending</span>
+                  )}
+                  {table.isDeleted && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">Deleted</span>
+                  )}
+                </div>
               </h3>
               <p className="text-gray-600">Table {table.number || table.tableNumber}</p>
               <p className="text-sm text-gray-500">

@@ -169,6 +169,36 @@ export const outboxService = {
           });
 
           if (res && res.ok) {
+            // Try to update local DB with server response for certain resources (e.g., users, purchases)
+            let json = null;
+            try { json = res.clone() && await res.clone().json(); } catch (e) {}
+
+            try {
+              // If this was a users create/update, reconcile local user records
+              if (item.url && item.url.includes('/users')) {
+                const serverUser = (json && (json.data || json.user || json)) || null;
+                if (serverUser) {
+                  // Find a local user matching by email or username and replace/persist server record
+                  try {
+                    const allUsers = await dbService.getAll('users');
+                    const match = (allUsers || []).find(u => (u.email && serverUser.email && u.email === serverUser.email) || (u.username && serverUser.username && u.username === serverUser.username));
+                    if (match) {
+                      // Preserve local passwordHash if present
+                      if (match.passwordHash) serverUser.passwordHash = match.passwordHash;
+                      await dbService.put('users', serverUser);
+                      // If local had local id different, delete it if ids differ
+                      if ((match.id && String(match.id).startsWith('local-')) && (serverUser._id && serverUser._id !== match.id)) {
+                        try { await dbService.delete('users', match.id); } catch (e) {}
+                      }
+                    } else {
+                      // No local match, just put server user
+                      await dbService.put('users', serverUser);
+                    }
+                  } catch (e) { console.warn('Failed to reconcile user after outbox flush', e); }
+                }
+              }
+            } catch (e) { console.warn('Reconciliation step failed', e); }
+
             await this.remove(item.id);
             console.log(`✅ Flushed outbox item ${item.id}`);
           } else {

@@ -239,6 +239,10 @@ const PurchaseForm = ({ initialData, onSave, onCancel }) => {
 
       console.log('📤 Submitting purchase:', payload);
       const response = await purchaseApi.createPurchase(payload);
+      // Notify user if the purchase was queued for offline sync
+      if (response && response.queued) {
+        alert(response.message || 'Purchase queued for sync (offline)');
+      }
       onSave(response.data);
     } catch (error) {
       console.error('❌ Failed to create purchase:', error);

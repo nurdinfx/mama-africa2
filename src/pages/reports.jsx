@@ -235,7 +235,19 @@ const Reports = () => {
       setCache(`${cacheKey}_time`, now);
       
       setReportData(data);
-      setDataSource('fresh');
+      // Detect if the report data contains local/offline items and set source accordingly
+      const hasLocalFlags = (obj) => {
+        if (!obj) return false;
+        try {
+          if (Array.isArray(obj)) return obj.some(i => hasLocalFlags(i));
+          if (typeof obj === 'object') {
+            if (obj.isOffline || obj.isLocal || obj.isOfflineUpdate || obj._deleted) return true;
+            return Object.values(obj).some(v => (typeof v === 'object' || Array.isArray(v)) && hasLocalFlags(v));
+          }
+        } catch (e) { return false; }
+        return false;
+      };
+      if (hasLocalFlags(data)) setDataSource('local'); else setDataSource('fresh');
       updateSummary(data, reportId);
     } catch (error) {
       console.error('Failed to load report:', error);
@@ -2040,6 +2052,9 @@ const Reports = () => {
                 <p className="text-blue-100 text-sm mt-1">{selectedReport?.description}</p>
                 {dataSource === 'cache' && (
                   <p className="text-blue-200 text-xs mt-1">📦 Showing cached data (offline mode)</p>
+                )}
+                {dataSource === 'local' && (
+                  <p className="text-yellow-200 text-xs mt-1">📡 Showing local data (computed from device)</p>
                 )}
                 {dataSource === 'fresh' && (
                   <p className="text-blue-200 text-xs mt-1">✅ Live data</p>

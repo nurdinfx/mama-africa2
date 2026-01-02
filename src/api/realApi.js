@@ -1170,7 +1170,13 @@ export const reportAPI = {
     try {
       return await api.get('/reports/purchases', { params });
     } catch (error) {
-      return handleApiError(error, 'getPurchaseReports');
+      console.warn('Network failed; loading purchases from IDB for report');
+      try {
+        const purchases = await (await import('../services/db')).dbService.getAll('purchases');
+        return { success: true, data: purchases || [], message: 'Loaded offline purchases' };
+      } catch (e) {
+        return handleApiError(error, 'getPurchaseReports');
+      }
     }
   },
 
@@ -1178,7 +1184,35 @@ export const reportAPI = {
     try {
       return await api.get('/reports/inventory', { params });
     } catch (error) {
-      return handleApiError(error, 'getInventoryReport');
+      console.warn('Network failed; computing inventory report from local data');
+      try {
+        const products = await (await import('../services/db')).dbService.getAll('products');
+        const orders = (await (await import('../services/db')).dbService.getAll('orders')) || (await (await import('../services/db')).dbService.getAll('offline_orders')) || [];
+
+        // Calculate product usage
+        const productUsage = {};
+        orders.forEach(order => {
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              const productId = item.product?._id || item.product;
+              if (!productUsage[productId]) productUsage[productId] = 0;
+              productUsage[productId] += item.quantity || 1;
+            });
+          }
+        });
+
+        const inventoryData = (products || []).map(product => ({
+          ...product,
+          usage: productUsage[product._id] || 0,
+          stockStatus: ((product.stock || 0) <= (product.lowStockThreshold || 10)) ? 'low' : 'ok',
+          reorderNeeded: (product.stock || 0) <= (product.lowStockThreshold || 10),
+          value: (product.stock || 0) * (product.costPrice || product.cost || 0)
+        }));
+
+        return { success: true, data: { inventory: inventoryData }, message: 'Computed inventory report from local data' };
+      } catch (e) {
+        return handleApiError(error, 'getInventoryReport');
+      }
     }
   },
 
@@ -1250,7 +1284,13 @@ export const userAPI = {
     try {
       return await api.get('/users', { params });
     } catch (error) {
-      return handleApiError(error, 'getUsers');
+      console.warn('Network failed; loading users from IDB');
+      try {
+        const cached = await (await import('../services/db')).dbService.getAll('users');
+        return { success: true, data: cached || [], message: 'Loaded from offline cache' };
+      } catch (e) {
+        return handleApiError(error, 'getUsers');
+      }
     }
   },
 
@@ -1258,30 +1298,136 @@ export const userAPI = {
     try {
       return await api.get(`/users/${id}`);
     } catch (error) {
+      console.warn('Network failed; loading user from IDB', id);
+      try {
+        const cached = await (await import('../services/db')).dbService.get(id);
+        if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' };
+        const all = await (await import('../services/db')).dbService.getAll('users');
+        const found = (all || []).find(u => u.id === id || u._id === id);
+        if (found) return { success: true, data: found, message: 'Loaded from offline cache' };
+      } catch (e) {}
       return handleApiError(error, 'getUser');
     }
   },
 
   createUser: async (data) => {
     try {
-      return await api.post('/users', data);
+      const res = await api.post('/users', data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('users', res.data); } catch (e) {}
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: creating user locally and queuing for sync');
+        try {
+          const id = `local-${Date.now()}`;
+          const { hashPassword } = await import('../services/password');
+          const pwdHash = data.password ? await hashPassword(data.password) : null;
+          const record = {
+            id,
+            _id: id,
+            name: data.name || data.fullName || data.username,
+            email: data.email || data.username,
+            username: data.username || data.email,
+            role: data.role || 'staff',
+            phone: data.phone || null,
+            address: data.address || null,
+            passwordHash: pwdHash,
+            createdAt: new Date().toISOString(),
+            isLocal: true
+          };
+          await (await import('../services/db')).dbService.put('users', record);
+
+          // Enqueue an outbox entry so the server can be created when back online
+          await (await import('../services/outbox')).outboxService.enqueue({
+            url: (await import('../config/api.config')).API_CONFIG.API_URL + '/users',
+            method: 'POST',
+            body: { ...data }
+          });
+
+          return { success: true, queued: true, data: { _id: id, ...record }, message: 'Created user locally and queued for sync' };
+        } catch (e) {
+          console.warn('Failed to create local user', e);
+          return handleApiError(error, 'createUser');
+        }
+      }
       return handleApiError(error, 'createUser');
     }
   },
 
   updateUser: async (id, data) => {
     try {
-      return await api.put(`/users/${id}`, data);
+      const res = await api.put(`/users/${id}`, data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('users', res.data); } catch (e) {}
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing user update and applying locally');
+        try {
+          // If password is being updated, hash it for local login
+          let pwdHash = null;
+          if (data && data.password) {
+            const { hashPassword } = await import('../services/password');
+            pwdHash = await hashPassword(data.password);
+          }
+
+          const local = { ...(data || {}), id, _id: id, updatedAt: new Date().toISOString(), isOfflineUpdate: true };
+          // Merge with existing record if present
+          const existing = (await (await import('../services/db')).dbService.get('users', id)) || {};
+          const merged = { ...existing, ...local };
+          if (pwdHash) {
+            merged.passwordHash = pwdHash;
+            // Do not store plain password locally
+            delete merged.password;
+          }
+
+          await (await import('../services/db')).dbService.put('users', merged);
+          await (await import('../services/outbox')).outboxService.enqueue({
+            url: (await import('../config/api.config')).API_CONFIG.API_URL + `/users/${id}`,
+            method: 'PUT',
+            body: data
+          });
+          return { success: true, queued: true, data: merged, message: 'Queued user update (offline)' };
+        } catch (e) {
+          console.warn('Failed to apply local user update', e);
+          return handleApiError(error, 'updateUser');
+        }
+      }
       return handleApiError(error, 'updateUser');
     }
   },
 
   deleteUser: async (id) => {
     try {
-      return await api.delete(`/users/${id}`);
+      const res = await api.delete(`/users/${id}`);
+      if (res && res.success) { try { (await import('../services/db')).dbService.delete('users', id); } catch (e) {} }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing user delete');
+        try {
+          // If it's a local-only user, just delete it locally
+          if (String(id).startsWith('local-')) {
+            await (await import('../services/db')).dbService.delete('users', id);
+          } else {
+            const record = await (await import('../services/db')).dbService.get('users', id) || { id, _id: id };
+            record.isDeleted = true;
+            await (await import('../services/db')).dbService.put('users', record);
+            await (await import('../services/outbox')).outboxService.enqueue({
+              url: (await import('../config/api.config')).API_CONFIG.API_URL + `/users/${id}`,
+              method: 'DELETE',
+              body: {}
+            });
+          }
+          return { success: true, queued: true, data: { _id: id }, message: 'Queued user delete (offline)' };
+        } catch (e) {
+          console.warn('Failed to queue user delete', e);
+          return handleApiError(error, 'deleteUser');
+        }
+      }
       return handleApiError(error, 'deleteUser');
     }
   }

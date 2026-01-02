@@ -97,6 +97,10 @@ const PurchaseProducts = ({ onStatsUpdate }) => {
         notes: p.notes || '',
         createdAt: p.createdAt || new Date().toISOString(),
         updatedAt: p.updatedAt || new Date().toISOString(),
+        // Offline flags propagated from IDB/server
+        isOffline: Boolean(p.isOffline || p.isLocal),
+        isOfflineUpdate: Boolean(p.isOfflineUpdate),
+        isDeleted: Boolean(p.isDeleted || p._deleted),
         ...p
       }));
       
@@ -184,9 +188,20 @@ const PurchaseProducts = ({ onStatsUpdate }) => {
       width: 200,
       flex: 1,
       renderCell: (params) => (
-        <Typography variant="body2" fontWeight="medium">
-          {params.row.supplier?.name || 'N/A'}
-        </Typography>
+        <div>
+          <Typography variant="body2" fontWeight="medium" component="div">
+            <span>{params.row.supplier?.name || 'N/A'}</span>
+            {params.row.isOffline && (
+              <span style={{marginLeft:8, padding:'2px 6px', fontSize:11, borderRadius:6, background:'#FEF3C7', color:'#92400E'}}>Local</span>
+            )}
+            {params.row.isOfflineUpdate && (
+              <span style={{marginLeft:8, padding:'2px 6px', fontSize:11, borderRadius:6, background:'#FFF7ED', color:'#92400E'}}>Pending</span>
+            )}
+            {params.row.isDeleted && (
+              <span style={{marginLeft:8, padding:'2px 6px', fontSize:11, borderRadius:6, background:'#FEE2E2', color:'#991B1B'}}>Deleted</span>
+            )}
+          </Typography>
+        </div>
       )
     },
     { 
