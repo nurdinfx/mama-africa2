@@ -1,6 +1,6 @@
 // src/components/ConnectionStatus.jsx
 import React, { useState, useEffect } from 'react';
-import { realApi, testBackendConnection } from '../api/realApi';
+import { realApi } from '../api/realApi';
 import { dbService } from '../services/db';
 
 const ConnectionStatus = () => {
@@ -41,18 +41,18 @@ const ConnectionStatus = () => {
   const checkConnection = async () => {
     try {
       setStatus('checking');
-      const result = await testBackendConnection();
-      
-      if (result.success) {
+      const result = await realApi.testConnection();
+
+      if (result && result.success) {
         setStatus('connected');
-        setBackendInfo(result.data);
+        setBackendInfo(result.data || result);
       } else {
         setStatus('failed');
-        setBackendInfo(result.error);
+        setBackendInfo(result?.error || result?.message || result);
       }
     } catch (error) {
       setStatus('failed');
-      setBackendInfo(error);
+      setBackendInfo(error?.message || error);
     }
   };
 
