@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { realApi } from '../api/realApi';
 import { dbService } from '../services/db';
+import { outboxService } from '../services/outbox';
+import { syncService } from '../services/SyncService';
 
 const ConnectionStatus = () => {
   const [status, setStatus] = useState('checking');
@@ -69,6 +71,16 @@ const ConnectionStatus = () => {
         <div className="mt-1 text-xs opacity-90">
           {queuedCount > 0 && <div>📤 Queued: {queuedCount} operation(s)</div>}
           {offlineOrdersCount > 0 && <div>🧾 Offline orders: {offlineOrdersCount}</div>}
+          <div className="mt-2">
+            {navigator.onLine ? (
+              <div className="flex space-x-2">
+                <button onClick={async () => { await import('../services/SyncService').then(m => { m.syncService.syncOutboxUp(); m.syncService.syncOfflineOrdersUp(); m.syncService.syncDataDown(); }).finally(() => updateCounts()); }} className="px-2 py-1 bg-white/10 rounded text-xs">Sync now</button>
+                <button onClick={async () => { await outboxService.flushOutbox(); await syncService.syncOfflineOrdersUp(); await syncService.syncDataDown(); updateCounts(); }} className="px-2 py-1 bg-white/10 rounded text-xs">Sync (immediate)</button>
+              </div>
+            ) : (
+              <div className="text-xs text-yellow-200">Connect to network to sync queued operations</div>
+            )}
+          </div>
         </div>
       )}
     </div>

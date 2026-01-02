@@ -1,5 +1,8 @@
 import api from './auth';
 import { outboxService } from '../services/outbox';
+import { API_CONFIG } from '../config/api.config';
+
+const buildUrl = (path) => `${API_CONFIG.API_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 
 export const productAPI = {
   getProducts: (params = {}) => 
@@ -14,7 +17,7 @@ export const productAPI = {
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing product create');
-        await outboxService.enqueue({ url: '/products', method: 'POST', body: productData });
+        await outboxService.enqueue({ url: buildUrl('/products'), method: 'POST', body: productData });
         return { success: true, queued: true, message: 'Queued product create' };
       }
       throw error;
@@ -27,7 +30,7 @@ export const productAPI = {
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing product update');
-        await outboxService.enqueue({ url: `/products/${id}`, method: 'PUT', body: productData });
+        await outboxService.enqueue({ url: buildUrl(`/products/${id}`), method: 'PUT', body: productData });
         return { success: true, queued: true, message: 'Queued product update' };
       }
       throw error;
@@ -40,7 +43,7 @@ export const productAPI = {
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing product delete');
-        await outboxService.enqueue({ url: `/products/${id}`, method: 'DELETE' });
+        await outboxService.enqueue({ url: buildUrl(`/products/${id}`), method: 'DELETE' });
         return { success: true, queued: true, message: 'Queued product delete' };
       }
       throw error;
@@ -56,7 +59,7 @@ export const productAPI = {
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing stock update');
-        await outboxService.enqueue({ url: `/products/${id}/stock`, method: 'PUT', body: stockData });
+        await outboxService.enqueue({ url: buildUrl(`/products/${id}/stock`), method: 'PUT', body: stockData });
         return { success: true, queued: true, message: 'Queued stock update' };
       }
       throw error;

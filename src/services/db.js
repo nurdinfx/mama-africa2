@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'mama-africa-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // bumped to add 'secrets' store for encrypted keys
 
 export const dbService = {
     async getDB() {
@@ -29,6 +29,12 @@ export const dbService = {
                     const outbox = db.createObjectStore('outbox', { keyPath: 'id', autoIncrement: true });
                     outbox.createIndex('timestamp', 'timestamp');
                 }
+
+                // Secrets store for encrypted keys and app secrets
+                if (!db.objectStoreNames.contains('secrets')) {
+                    db.createObjectStore('secrets', { keyPath: 'id' });
+                }
+
                 // Users store
                 if (!db.objectStoreNames.contains('users')) {
                     db.createObjectStore('users', { keyPath: 'id' });

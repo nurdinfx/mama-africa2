@@ -15,7 +15,8 @@ const Login = () => {
   const [activeTab, setActiveTab] = useState('login'); // 'login' or 'quick'
   const [showPassword, setShowPassword] = useState(false);
 
-  const { login, isAuthenticated, user, loading: authLoading } = useAuth();
+  const { login, isAuthenticated, user, loading: authLoading, restoreCachedSession } = useAuth();
+  const [cachedAvailable, setCachedAvailable] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,6 +27,24 @@ const Login = () => {
       return () => clearTimeout(timer);
     }
   }, [isAuthenticated, user, navigate]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const saved = localStorage.getItem('user');
+    setCachedAvailable(Boolean(token && saved));
+
+    const onOnlineStatusChanged = () => {
+      const token2 = localStorage.getItem('token');
+      const saved2 = localStorage.getItem('user');
+      setCachedAvailable(Boolean(token2 && saved2));
+    };
+    window.addEventListener('online', onOnlineStatusChanged);
+    window.addEventListener('offline', onOnlineStatusChanged);
+    return () => {
+      window.removeEventListener('online', onOnlineStatusChanged);
+      window.removeEventListener('offline', onOnlineStatusChanged);
+    };
+  }, []);
 
   const prefetchDashboardData = async () => {
     try {
@@ -255,6 +274,28 @@ const Login = () => {
                     <div className="bg-red-500/20 backdrop-blur-md text-red-200 p-4 rounded-2xl border border-red-500/30 text-sm flex items-start shadow-inner">
                       <Info size={18} className="mr-3 flex-shrink-0 mt-0.5" />
                       <span className="font-medium">{error}</span>
+                    </div>
+                  )}
+
+                  {/* Offline cached session shortcut */}
+                  {!navigator.onLine && cachedAvailable && (
+                    <div className="mb-4">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await restoreCachedSession();
+                          if (res.success) {
+                            await prefetchDashboardData();
+                            navigate('/pos', { replace: true });
+                          } else {
+                            setError('No cached session available');
+                          }
+                        }}
+                        className="w-full bg-yellow-400 text-black font-bold py-3 rounded-2xl shadow-inner text-sm"
+                      >
+                        Use cached session (Offline)
+                      </button>
+                      <p className="text-xs text-white/60 mt-2">You are offline — using a previously cached session. Some features may be unavailable.</p>
                     </div>
                   )}
 

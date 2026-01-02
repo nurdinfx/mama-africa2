@@ -26,6 +26,7 @@ import { useEffect } from 'react';
 import { syncService } from './services/SyncService';
 import { Toaster, toast } from 'react-hot-toast';
 import ConnectionStatus from './components/ConnectionStatus';
+import InstallPrompt from './components/InstallPrompt';
 
 function App() {
   useEffect(() => {
@@ -61,6 +62,7 @@ function App() {
           <div className="App h-full w-full">
             <Toaster position="top-right" />
             <ConnectionStatus />
+            <InstallPrompt />
             <Routes>
               <Route path="/login" element={<Login />} />
 

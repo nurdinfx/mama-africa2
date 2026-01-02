@@ -69,3 +69,66 @@ self.addEventListener('fetch', (event) => {
         fetch(event.request).catch(() => caches.match(event.request))
     );
 });
+
+// Background Sync handler: flush outbox when 'outbox-sync' event fires
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'outbox-sync') {
+    event.waitUntil((async () => {
+      try {
+        const dbOpen = indexedDB.open('mama-africa-db');
+        const items = await new Promise((resolve, reject) => {
+          dbOpen.onsuccess = () => {
+            const db = dbOpen.result;
+            const tx = db.transaction('outbox', 'readonly');
+            const store = tx.objectStore('outbox');
+            const all = store.getAll();
+            all.onsuccess = () => resolve(all.result || []);
+            all.onerror = () => resolve([]);
+          };
+          dbOpen.onerror = () => resolve([]);
+        });
+
+        if (!items || items.length === 0) return;
+
+        // Build operations for batch sync endpoint
+        const operations = items.map(it => ({ method: it.method || 'POST', url: it.url, body: it.body }));
+
+        // Use auth header from first item if available
+        const authHeader = items[0]?.headers?.Authorization;
+        const headers = { 'Content-Type': 'application/json' };
+        if (authHeader) headers['Authorization'] = authHeader;
+
+        const res = await fetch('/api/v1/sync', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ operations })
+        });
+
+        if (!res.ok) {
+          throw new Error('Sync failed with status ' + res.status);
+        }
+
+        const json = await res.json();
+        // On success, remove items that were processed
+        // Assume results array aligns with items
+        const dbOpen2 = indexedDB.open('mama-africa-db');
+        dbOpen2.onsuccess = () => {
+          const db = dbOpen2.result;
+          const tx = db.transaction('outbox', 'readwrite');
+          const store = tx.objectStore('outbox');
+          for (let i = 0; i < items.length; i++) {
+            // If server returned success for the op, delete local item
+            const r = json.results && json.results[i];
+            if (!r || r.success) {
+              try { store.delete(items[i].id); } catch (e) { }
+            }
+          }
+        };
+
+      } catch (err) {
+        console.error('Background outbox sync failed:', err);
+        throw err; // Let sync retry later
+      }
+    })());
+  }
+});

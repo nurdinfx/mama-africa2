@@ -94,6 +94,7 @@ export const AuthProvider = ({ children }) => {
   const clearAuthData = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('auth_ts');
     sessionStorage.clear();
 
     setUser(null);
@@ -107,9 +108,23 @@ export const AuthProvider = ({ children }) => {
       if (result.success) {
         const { token, user: userData } = result.data;
 
-        // Store in localStorage for persistence
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(userData));
+        // Store in localStorage for persistence (encrypted when possible)
+        try {
+          // Use crypto service to encrypt sensitive data
+          const { cryptoService } = await import('../services/crypto');
+          const encToken = await cryptoService.encrypt(token);
+          const encUser = await cryptoService.encrypt(userData);
+          if (encToken.success) localStorage.setItem('token_enc', encToken.encrypted);
+          else localStorage.setItem('token', token);
+          if (encUser.success) localStorage.setItem('user_enc', encUser.encrypted);
+          else localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.setItem('auth_ts', Date.now());
+        } catch (e) {
+          console.warn('Encryption unavailable; storing token/user in localStorage as fallback', e);
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.setItem('auth_ts', Date.now());
+        }
 
         setUser(userData);
         setIsAuthenticated(true);
@@ -124,6 +139,52 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: error.message || 'Login failed'
       };
+    }
+  };
+
+  // Restore cached session when offline
+  const restoreCachedSession = async () => {
+    try {
+      // Prefer encrypted values if available
+      const encToken = localStorage.getItem('token_enc');
+      const encUser = localStorage.getItem('user_enc');
+      let token = null;
+      let userObj = null;
+
+      if (encToken || encUser) {
+        try {
+          const { cryptoService } = await import('../services/crypto');
+          if (encToken) {
+            const d = await cryptoService.decrypt(encToken);
+            if (d.success) token = d.data;
+          }
+          if (encUser) {
+            const d2 = await cryptoService.decrypt(encUser);
+            if (d2.success) userObj = d2.data;
+          }
+        } catch (err) {
+          console.warn('Failed to decrypt cached session, falling back to plain storage', err);
+        }
+      }
+
+      // Fallback to plain localStorage
+      if (!token) token = localStorage.getItem('token');
+      if (!userObj) {
+        const saved = localStorage.getItem('user');
+        if (saved) userObj = JSON.parse(saved);
+      }
+
+      if (token && userObj) {
+        setUser(userObj);
+        setIsAuthenticated(true);
+        setBackendStatus(navigator.onLine ? 'connected' : 'offline');
+        return { success: true, user: userObj };
+      }
+
+      return { success: false, message: 'No cached session' };
+    } catch (e) {
+      console.error('Failed to restore cached session', e);
+      return { success: false, message: e.message };
     }
   };
 
@@ -166,6 +227,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     clearAuthData,
+    restoreCachedSession,
     switchToDemo
   };
 

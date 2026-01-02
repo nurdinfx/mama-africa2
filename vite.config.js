@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Mama Africa POS',
@@ -26,6 +27,14 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
+      },
+      // Use injectManifest so we can include custom background-sync logic in src/sw-custom.js
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        swSrc: 'src/sw-custom.js',
+        swDest: 'sw.js'
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf}'],

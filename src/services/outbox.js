@@ -14,6 +14,53 @@ export const outboxService = {
         attempts: 0
       };
       await dbService.put('outbox', item);
+
+      // Attach current auth token to headers so SW can perform authenticated sync when needed
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const authHeader = token.startsWith('demo-') ? token : `Bearer ${token}`;
+          item.headers = { ...(item.headers || {}), Authorization: authHeader };
+          // Update stored item with header
+          await dbService.put('outbox', item);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // Try to register Background Sync if supported
+      try {
+        if ('serviceWorker' in navigator && 'SyncManager' in window) {
+          const reg = await navigator.serviceWorker.ready;
+          try {
+            await reg.sync.register('outbox-sync');
+            console.log('Background sync registered: outbox-sync');
+          } catch (e) {
+            console.warn('Sync registration failed', e);
+          }
+        }
+
+        // If the service worker controller exists, notify it to trigger a retry notification to clients
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          try {
+            navigator.serviceWorker.controller.postMessage({ type: 'OUTBOX_ENQUEUED' });
+          } catch (e) {
+            // ignore
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // If we are online, try to flush immediately from the client context (has access to auth headers)
+      try {
+        if (navigator.onLine) {
+          setTimeout(() => {
+            this.flushOutbox();
+          }, 500);
+        }
+      } catch (e) {}
+
       return true;
     } catch (e) {
       console.error('Failed to enqueue outbox item', e);
@@ -45,6 +92,33 @@ export const outboxService = {
       if (!items.length) return;
 
       console.log(`📤 Flushing ${items.length} outbox items...`);
+
+      // If there are multiple items, try batching them to /api/v1/sync (server supports batch endpoint)
+      if (items.length > 1) {
+        try {
+          const operations = items.map(it => ({ method: it.method, url: it.url, body: it.body }));
+          const firstHeaders = items[0].headers || { 'Content-Type': 'application/json' };
+          const res = await fetch('/api/v1/sync', {
+            method: 'POST',
+            headers: firstHeaders,
+            body: JSON.stringify({ operations })
+          });
+
+          if (res && res.ok) {
+            const json = await res.json();
+            // Remove all items if server processed them (we don't inspect results deeply here)
+            for (const it of items) {
+              await this.remove(it.id);
+            }
+            console.log(`✅ Batched ${items.length} outbox items via /sync`);
+            return;
+          } else {
+            console.warn('Batch sync failed or rejected, falling back to individual flush');
+          }
+        } catch (err) {
+          console.warn('Batch sync network error, falling back to individual flush', err);
+        }
+      }
 
       for (const item of items) {
         try {
