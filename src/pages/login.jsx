@@ -123,6 +123,41 @@ const Login = () => {
     }
   };
 
+  // Try to resume a cached session when offline
+  const handleResumeCached = async () => {
+    setError('');
+    try {
+      const res = await restoreCachedSession();
+      if (res && res.success) {
+        // prefetch but keep non-blocking
+        prefetchDashboardData();
+      } else {
+        setError(res.message || 'No cached session available');
+      }
+    } catch (e) {
+      setError('Failed to resume cached session');
+    }
+  };
+
+  // Attempt offline credential login (verifies against locally cached password hash)
+  const handleOfflineLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await realApi.auth.offlineLogin(formData.identifier, formData.password);
+      if (res && res.success) {
+        // treat like normal login success
+        await prefetchDashboardData();
+      } else {
+        setError(res.message || 'Offline login failed');
+      }
+    } catch (e) {
+      setError(e.message || 'Offline login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return;
@@ -375,15 +410,41 @@ const Login = () => {
                       )}
                     </button>
 
-                    {/* Create Local User (works offline) */}
-                    <div className="mt-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setShowRegister(!showRegister)}
-                        className="text-white/80 underline text-sm hover:text-white"
-                      >
-                        {showRegister ? 'Hide' : 'Create local account (works offline)'}
-                      </button>
+                    {/* Offline options */}
+                    <div className="mt-3 text-center space-y-2">
+                      {!navigator.onLine && cachedAvailable && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handleResumeCached}
+                            className="w-full bg-white/10 text-white hover:bg-white/20 py-2 rounded-lg font-semibold"
+                          >
+                            Resume cached session
+                          </button>
+                        </div>
+                      )}
+
+                      {!navigator.onLine && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handleOfflineLogin}
+                            className="w-full bg-white/10 text-white hover:bg-white/20 py-2 rounded-lg font-semibold"
+                          >
+                            Offline login (use credentials)
+                          </button>
+                        </div>
+                      )}
+
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setShowRegister(!showRegister)}
+                          className="text-white/80 underline text-sm hover:text-white"
+                        >
+                          {showRegister ? 'Hide' : 'Create local account (works offline)'}
+                        </button>
+                      </div>
                     </div>
 
                     {showRegister && (

@@ -105,6 +105,44 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (identifier, password) => {
     try {
+      // If offline, try explicit offline login first so we can provide a clearer flow
+      if (!navigator.onLine) {
+        try {
+          const offlineRes = await realApi.auth.offlineLogin(identifier, password);
+          if (offlineRes && offlineRes.success) {
+            const { token, user: userData } = offlineRes.data;
+            // Persist session (attempt encryption)
+            try {
+              const { cryptoService } = await import('../services/crypto');
+              const encToken = await cryptoService.encrypt(token);
+              const encUser = await cryptoService.encrypt(userData);
+              if (encToken.success) localStorage.setItem('token_enc', encToken.encrypted);
+              else localStorage.setItem('token', token);
+              if (encUser.success) localStorage.setItem('user_enc', encUser.encrypted);
+              else localStorage.setItem('user', JSON.stringify(userData));
+              localStorage.setItem('auth_ts', Date.now());
+            } catch (e) {
+              console.warn('Encryption unavailable; storing token/user in localStorage as fallback', e);
+              localStorage.setItem('token', token);
+              localStorage.setItem('user', JSON.stringify(userData));
+              localStorage.setItem('auth_ts', Date.now());
+            }
+
+            setUser(userData);
+            setIsAuthenticated(true);
+            setBackendStatus('offline');
+
+            return { success: true, user: userData };
+          }
+
+          // If offline login failed, return the offline result so UI shows clear message
+          return offlineRes || { success: false, message: 'Offline login failed' };
+        } catch (e) {
+          console.warn('Offline login attempt threw error', e);
+          return { success: false, message: 'Offline login attempt failed' };
+        }
+      }
+
       const result = await realApi.login(identifier, password);
 
       if (result.success) {

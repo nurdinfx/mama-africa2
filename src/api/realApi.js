@@ -240,6 +240,74 @@ const extractData = (response) => {
   return data;
 };
 
+// Centralized offline login helper
+const offlineLoginFallback = async (identifier, password) => {
+  try {
+    const users = await dbService.getAll('users');
+    console.debug('Offline users in DB:', users && users.length);
+
+    const idNormalized = (identifier || '').toString().trim().toLowerCase();
+    let found = (users || []).find(u => {
+      try {
+        const email = (u.emailLower || u.email || '').toString().toLowerCase();
+        const username = (u.usernameLower || u.username || '').toString().toLowerCase();
+        const id = (u.id || u._id || '').toString();
+        return email === idNormalized || username === idNormalized || id === identifier;
+      } catch (e) { return false; }
+    });
+
+    if (!found) {
+      // Try a secondary search using local users_list cache (in case DB misses due to recent writes)
+      try {
+        const raw = localStorage.getItem('users_list');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const arr = Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed) ? parsed : []);
+          const idNorm = (identifier || '').toString().trim().toLowerCase();
+          const second = (arr || []).find(u => {
+            try {
+              const email = (u.email || u.emailLower || '').toString().toLowerCase();
+              const username = (u.username || u.usernameLower || '').toString().toLowerCase();
+              const name = (u.name || '').toString().toLowerCase();
+              const phone = (u.phone || '').toString();
+              return email === idNorm || username === idNorm || name === idNorm || phone === identifier;
+            } catch (e) { return false; }
+          });
+          if (second) {
+            console.debug('Offline login fallback: matched user via users_list cache', second);
+            found = second;
+          }
+        }
+      } catch (e) { console.debug('users_list cache lookup failed', e); }
+
+      if (!found) {
+        return { success: false, message: 'Offline login failed: user not found. Please log in once while online to enable offline login.' };
+      }
+    }
+
+    if (!found.passwordHash) {
+      console.warn('Offline login fallback: user has no local password hash', found);
+      return { success: false, message: 'Offline login failed: no local password set. Please sign in while online to cache credentials for offline use.' };
+    }
+
+    const { verifyPassword } = await import('../services/password');
+    const ok = await verifyPassword(password, found.passwordHash);
+    console.debug('Offline password verification result:', ok, 'for', found && (found.username || found.email || found._id));
+    if (ok) {
+      const token = `local-${found._id || found.id}-${Date.now()}`;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify({ _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role }));
+      return { success: true, status: 200, data: { token, user: { _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role } }, message: 'Logged in offline' };
+    } else {
+      console.warn('Offline login fallback: password mismatch for user', found.username || found.email);
+      return { success: false, message: 'Offline login failed: invalid password' };
+    }
+  } catch (e) {
+    console.warn('Offline login fallback failed', e);
+    return { success: false, message: 'Offline login failed: error' };
+  }
+};
+
 // ========== AUTHENTICATION API ==========
 export const authAPI = {
   login: async (identifier, password) => {
@@ -279,74 +347,9 @@ export const authAPI = {
 
         return response;
       } catch (error) {
-        // Network or backend error — attempt offline login via DB
-        console.warn('Login network failed, attempting offline login fallback', error);
-        try {
-          const users = await dbService.getAll('users');
-          console.debug('Offline users in DB:', users && users.length);
-
-          const idNormalized = (identifier || '').toString().trim().toLowerCase();
-          let found = (users || []).find(u => {
-            try {
-              const email = (u.emailLower || u.email || '').toString().toLowerCase();
-              const username = (u.usernameLower || u.username || '').toString().toLowerCase();
-              const id = (u.id || u._id || '').toString();
-              return email === idNormalized || username === idNormalized || id === identifier;
-            } catch (e) { return false; }
-          });
-
-          if (!found) {
-            console.warn('Offline login fallback: user not found for identifier', identifier);
-
-            // Try a secondary search using local users_list cache (in case DB misses due to recent writes)
-            try {
-              const raw = localStorage.getItem('users_list');
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                const arr = Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed) ? parsed : []);
-                const idNorm = (identifier || '').toString().trim().toLowerCase();
-                const second = (arr || []).find(u => {
-                  try {
-                    const email = (u.email || u.emailLower || '').toString().toLowerCase();
-                    const username = (u.username || u.usernameLower || '').toString().toLowerCase();
-                    const name = (u.name || '').toString().toLowerCase();
-                    const phone = (u.phone || '').toString();
-                    return email === idNorm || username === idNorm || name === idNorm || phone === identifier;
-                  } catch (e) { return false; }
-                });
-                if (second) {
-                  console.debug('Offline login fallback: matched user via users_list cache', second);
-                  found = second;
-                }
-              }
-            } catch (e) { console.debug('users_list cache lookup failed', e); }
-
-            if (!found) {
-              return { success: false, message: 'Offline login failed: user not found' };
-            }
-          }
-
-          if (!found.passwordHash) {
-            console.warn('Offline login fallback: user has no local password hash', found);
-            return { success: false, message: 'Offline login failed: no local password set' };
-          }
-
-          const { verifyPassword } = await import('../services/password');
-          const ok = await verifyPassword(password, found.passwordHash);
-          console.debug('Offline password verification result:', ok, 'for', found && (found.username || found.email || found._id));
-          if (ok) {
-            const token = `local-${found._id || found.id}-${Date.now()}`;
-            localStorage.setItem('token', token);
-            localStorage.setItem('user', JSON.stringify({ _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role }));
-            return { success: true, status: 200, data: { token, user: { _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role } }, message: 'Logged in offline' };
-          } else {
-            console.warn('Offline login fallback: password mismatch for user', found.username || found.email);
-            return { success: false, message: 'Offline login failed: invalid password' };
-          }
-        } catch (e) {
-          console.warn('Offline login fallback failed', e);
-          return { success: false, message: 'Offline login failed: error' };
-        }
+        // Network or backend error — delegate to centralized offline login helper
+        console.warn('Login network failed, delegating offline fallback', error);
+        return await authAPI.offlineLogin(identifier, password);
       }
     } catch (err) {
       return handleApiError(err, 'login');
@@ -442,6 +445,9 @@ export const authAPI = {
     }
   }
 };
+
+// Attach helper for external/explicit offline login attempts
+authAPI.offlineLogin = offlineLoginFallback;
 
 // ========== PURCHASE API ==========
 export const purchaseAPI = {

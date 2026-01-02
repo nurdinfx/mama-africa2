@@ -144,6 +144,14 @@ self.addEventListener('fetch', (event) => {
                     }).catch(() => {});
                     return response;
                 }).catch(() => {
+                    // If this was an auth or API POST request, return a JSON offline response
+                    if (requestUrl.pathname.startsWith('/auth') || (requestUrl.pathname.startsWith('/api') && request.method !== 'GET')) {
+                        return new Response(JSON.stringify({ success: false, message: 'Offline' }), {
+                            status: 503,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+
                     return new Response('Offline', { status: 504, statusText: 'Offline' });
                 });
             })

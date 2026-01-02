@@ -81,7 +81,7 @@ api.interceptors.response.use(
         success: false,
         message: 'Cannot connect to server. Please check if backend is running.',
         code: 'NETWORK_ERROR',
-        details: `Failed to connect to ${API_URL}`
+        details: `Failed to connect to ${API_CONFIG.API_URL}`
       };
       return Promise.reject(networkError);
     }
