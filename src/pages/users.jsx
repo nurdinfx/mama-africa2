@@ -15,12 +15,18 @@ const Users = () => {
   } = useOptimisticData('users_list', async () => {
     const response = await realApi.getUsers();
     if (response.success) {
-      return realApi.extractData(response) || [];
+      const raw = realApi.extractData(response) || [];
+      // Normalize each user to always expose _id for UI consistency
+      return (Array.isArray(raw) ? raw : [raw]).map(u => ({ _id: u._id || u.id, ...u }));
     }
     throw new Error(response.message || 'Failed to load users');
   }, []);
 
   const [filteredUsers, setFilteredUsers] = useState([]);
+  // Sorting for date columns
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
+
   // const [loading, setLoading] = useState(true); // Handled by hook
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -34,6 +40,11 @@ const Users = () => {
   useEffect(() => {
     if (hookError) setError(hookError.message);
   }, [hookError]);
+
+  // Recompute filtered users whenever the source data or filters change
+  useEffect(() => {
+    filterUsers();
+  }, [users, searchTerm, roleFilter, sortBy, sortDir]);
 
   // Listen for local changes to users (so offline-created users show up immediately)
   useEffect(() => {
@@ -64,19 +75,31 @@ const Users = () => {
   // }, []);
 
   const filterUsers = () => {
-    let filtered = users;
+    let filtered = Array.isArray(users) ? users.slice() : [];
 
     if (searchTerm) {
       filtered = filtered.filter(user =>
         user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.phone?.includes(searchTerm)
+        (user.phone || '').toString().includes(searchTerm)
       );
     }
 
     if (roleFilter) {
       filtered = filtered.filter(user => user.role === roleFilter);
+    }
+
+    // Sorting by date fields (createdAt / lastLogin)
+    try {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      filtered.sort((a, b) => {
+        const aVal = new Date(a[sortBy] || a.createdAt || 0).getTime();
+        const bVal = new Date(b[sortBy] || b.createdAt || 0).getTime();
+        return (aVal - bVal) * dir;
+      });
+    } catch (e) {
+      // silent
     }
 
     setFilteredUsers(filtered);
@@ -114,7 +137,8 @@ const Users = () => {
         const response = await realApi.deleteUser(userId);
 
         if (response.success) {
-          setUsers(prev => prev.filter(u => u._id !== userId));
+          // Refresh user list to reflect deletion (works for offline and online flows)
+          try { await loadUsers(); } catch (e) { console.warn('Failed to refresh users after delete', e); }
         } else {
           throw new Error(response.message || 'Failed to delete user');
         }
@@ -130,11 +154,8 @@ const Users = () => {
       const response = await realApi.updateUser(userId, { isActive: !currentStatus });
 
       if (response.success) {
-        setUsers(prev =>
-          prev.map(u =>
-            u._id === userId ? { ...u, isActive: !currentStatus } : u
-          )
-        );
+        // Refresh list so changes (including offline queued) are visible
+        try { await loadUsers(); } catch (e) { console.warn('Failed to refresh users after status change', e); }
       } else {
         throw new Error(response.message || 'Failed to update user status');
       }
@@ -167,6 +188,25 @@ const Users = () => {
   };
 
   const roles = ['admin', 'manager', 'chef', 'cashier', 'waiter'];
+
+  // Toggle sort field and direction
+  const toggleSort = (field) => {
+    if (sortBy === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortDir('desc');
+    }
+  };
+
+  const formatDate = (value) => {
+    try {
+      if (!value) return '-';
+      const d = new Date(value);
+      if (isNaN(d)) return '-';
+      return d.toLocaleString();
+    } catch (e) { return '-'; }
+  }; 
 
   if (loading) {
     return (
@@ -253,8 +293,16 @@ const Users = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <button onClick={() => toggleSort('lastLogin')} className="flex items-center gap-2">
+                    Last Login {sortBy === 'lastLogin' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <button onClick={() => toggleSort('createdAt')} className="flex items-center gap-2">
+                    Created {sortBy === 'createdAt' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </button>
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -284,8 +332,8 @@ const Users = () => {
                   <td className="px-6 py-4 text-sm">
                     <span className={`font-medium ${u.isActive ? 'text-green-600' : 'text-red-600'}`}>{u.isActive ? 'Active' : 'Inactive'}</span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{u.createdAt ? new Date(u.createdAt).toLocaleString() : '-'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{u.lastLogin ? formatDate(u.lastLogin) : 'Never'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{formatDate(u.createdAt)}</td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex gap-2">
                       <button

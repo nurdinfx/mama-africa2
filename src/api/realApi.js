@@ -286,10 +286,10 @@ export const authAPI = {
           console.debug('Offline users in DB:', users && users.length);
 
           const idNormalized = (identifier || '').toString().trim().toLowerCase();
-          const found = (users || []).find(u => {
+          let found = (users || []).find(u => {
             try {
-              const email = (u.email || '').toString().toLowerCase();
-              const username = (u.username || '').toString().toLowerCase();
+              const email = (u.emailLower || u.email || '').toString().toLowerCase();
+              const username = (u.usernameLower || u.username || '').toString().toLowerCase();
               const id = (u.id || u._id || '').toString();
               return email === idNormalized || username === idNormalized || id === identifier;
             } catch (e) { return false; }
@@ -297,7 +297,33 @@ export const authAPI = {
 
           if (!found) {
             console.warn('Offline login fallback: user not found for identifier', identifier);
-            return { success: false, message: 'Offline login failed: user not found' };
+
+            // Try a secondary search using local users_list cache (in case DB misses due to recent writes)
+            try {
+              const raw = localStorage.getItem('users_list');
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                const arr = Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed) ? parsed : []);
+                const idNorm = (identifier || '').toString().trim().toLowerCase();
+                const second = (arr || []).find(u => {
+                  try {
+                    const email = (u.email || u.emailLower || '').toString().toLowerCase();
+                    const username = (u.username || u.usernameLower || '').toString().toLowerCase();
+                    const name = (u.name || '').toString().toLowerCase();
+                    const phone = (u.phone || '').toString();
+                    return email === idNorm || username === idNorm || name === idNorm || phone === identifier;
+                  } catch (e) { return false; }
+                });
+                if (second) {
+                  console.debug('Offline login fallback: matched user via users_list cache', second);
+                  found = second;
+                }
+              }
+            } catch (e) { console.debug('users_list cache lookup failed', e); }
+
+            if (!found) {
+              return { success: false, message: 'Offline login failed: user not found' };
+            }
           }
 
           if (!found.passwordHash) {
@@ -307,12 +333,12 @@ export const authAPI = {
 
           const { verifyPassword } = await import('../services/password');
           const ok = await verifyPassword(password, found.passwordHash);
-          console.debug('Offline password verification result:', ok);
+          console.debug('Offline password verification result:', ok, 'for', found && (found.username || found.email || found._id));
           if (ok) {
             const token = `local-${found._id || found.id}-${Date.now()}`;
             localStorage.setItem('token', token);
             localStorage.setItem('user', JSON.stringify({ _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role }));
-            return { success: true, status: 200, data: { token, user: { _id: found._id || found.id, name: found.name, email: found.email } }, message: 'Logged in offline' };
+            return { success: true, status: 200, data: { token, user: { _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role } }, message: 'Logged in offline' };
           } else {
             console.warn('Offline login fallback: password mismatch for user', found.username || found.email);
             return { success: false, message: 'Offline login failed: invalid password' };
@@ -338,12 +364,16 @@ export const authAPI = {
           const id = `local-${Date.now()}`;
           const { hashPassword } = await import('../services/password');
           const pwdHash = userData.password ? await hashPassword(userData.password) : null;
+          const usernameVal = (userData.username || userData.email || '').toString().trim();
+          const emailVal = (userData.email || userData.username || '').toString().trim();
           const record = {
             id,
             _id: id,
-            name: userData.name || (userData.fullName || userData.username),
-            email: userData.email || userData.username,
-            username: userData.username || userData.email,
+            name: userData.name || (userData.fullName || usernameVal),
+            email: emailVal,
+            username: usernameVal,
+            emailLower: emailVal.toLowerCase(),
+            usernameLower: usernameVal.toLowerCase(),
             role: userData.role || 'staff',
             passwordHash: pwdHash,
             createdAt: new Date().toISOString(),
@@ -352,6 +382,7 @@ export const authAPI = {
 
           // Persist to IDB
           await dbService.put('users', record);
+          console.debug('Registered local user stored in IDB:', record);
 
           // Update local users cache (use optimistic localStorage update so UI reflects change immediately)
           try {
@@ -1348,7 +1379,7 @@ export const userAPI = {
     } catch (error) {
       console.warn('Network failed; loading user from IDB', id);
       try {
-        const cached = await (await import('../services/db')).dbService.get(id);
+        const cached = await (await import('../services/db')).dbService.get('users', id);
         if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' };
         const all = await (await import('../services/db')).dbService.getAll('users');
         const found = (all || []).find(u => u.id === id || u._id === id);
@@ -1372,12 +1403,16 @@ export const userAPI = {
           const id = `local-${Date.now()}`;
           const { hashPassword } = await import('../services/password');
           const pwdHash = data.password ? await hashPassword(data.password) : null;
+          const usernameVal = (data.username || data.email || '').toString().trim();
+          const emailVal = (data.email || data.username || '').toString().trim();
           const record = {
             id,
             _id: id,
-            name: data.name || data.fullName || data.username,
-            email: data.email || data.username,
-            username: data.username || data.email,
+            name: data.name || data.fullName || usernameVal,
+            email: emailVal,
+            username: usernameVal,
+            emailLower: emailVal.toLowerCase(),
+            usernameLower: usernameVal.toLowerCase(),
             role: data.role || 'staff',
             phone: data.phone || null,
             address: data.address || null,

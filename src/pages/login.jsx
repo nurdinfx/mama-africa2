@@ -418,6 +418,8 @@ const Login = () => {
 
                                   // Auto-login the newly created local user for immediate access
                                   try {
+                                    // Small delay to ensure IndexedDB writes are settled in all browsers
+                                    await new Promise(res => setTimeout(res, 100));
                                     const loginRes = await login(payload.email || payload.username, payload.password);
                                     if (loginRes && loginRes.success) {
                                       await prefetchDashboardData();
