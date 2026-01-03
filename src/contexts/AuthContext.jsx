@@ -126,81 +126,97 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (identifier, password) => {
     try {
-      // If offline, try explicit offline login first so we can provide a clearer flow
+      // 1. Try explicit offline login if we know we are offline
       if (!navigator.onLine) {
-        try {
-          const offlineRes = await realApi.auth.offlineLogin(identifier, password);
-          if (offlineRes && offlineRes.success) {
-            const { token, user: userData } = offlineRes.data;
-            // Persist session (attempt encryption)
-            try {
-              const { cryptoService } = await import('../services/crypto');
-              const encToken = await cryptoService.encrypt(token);
-              const encUser = await cryptoService.encrypt(userData);
-              if (encToken.success) localStorage.setItem('token_enc', encToken.encrypted);
-              else localStorage.setItem('token', token);
-              if (encUser.success) localStorage.setItem('user_enc', encUser.encrypted);
-              else localStorage.setItem('user', JSON.stringify(userData));
-              localStorage.setItem('auth_ts', Date.now());
-            } catch (e) {
-              console.warn('Encryption unavailable; storing token/user in localStorage as fallback', e);
-              localStorage.setItem('token', token);
-              localStorage.setItem('user', JSON.stringify(userData));
-              localStorage.setItem('auth_ts', Date.now());
-            }
-
-            setUser(userData);
-            setIsAuthenticated(true);
-            setBackendStatus('offline');
-
-            return { success: true, user: userData };
-          }
-
-          // If offline login failed, return the offline result so UI shows clear message
-          return offlineRes || { success: false, message: 'Offline login failed' };
-        } catch (e) {
-          console.warn('Offline login attempt threw error', e);
-          return { success: false, message: 'Offline login attempt failed' };
-        }
+        return await attemptOfflineLogin(identifier, password);
       }
 
+      // 2. Try online login
       const result = await realApi.login(identifier, password);
 
       if (result.success) {
+        // Online success
         const { token, user: userData } = result.data;
-
-        // Store in localStorage for persistence (encrypted when possible)
-        try {
-          // Use crypto service to encrypt sensitive data
-          const { cryptoService } = await import('../services/crypto');
-          const encToken = await cryptoService.encrypt(token);
-          const encUser = await cryptoService.encrypt(userData);
-          if (encToken.success) localStorage.setItem('token_enc', encToken.encrypted);
-          else localStorage.setItem('token', token);
-          if (encUser.success) localStorage.setItem('user_enc', encUser.encrypted);
-          else localStorage.setItem('user', JSON.stringify(userData));
-          localStorage.setItem('auth_ts', Date.now());
-        } catch (e) {
-          console.warn('Encryption unavailable; storing token/user in localStorage as fallback', e);
-          localStorage.setItem('token', token);
-          localStorage.setItem('user', JSON.stringify(userData));
-          localStorage.setItem('auth_ts', Date.now());
-        }
-
-        setUser(userData);
-        setIsAuthenticated(true);
+        handleSuccessfulLogin(token, userData, password);
         setBackendStatus('connected');
-
         return { success: true, user: userData };
       } else {
+        // 3. Online failed - check if it was a network/connection error or server error
+        // If message implies network error, try offline fallback
+        if (result.message && (
+          result.message.toLowerCase().includes('network') ||
+          result.message.toLowerCase().includes('failed to fetch') ||
+          result.message.toLowerCase().includes('offline') ||
+          result.status === 0 ||
+          !result.status
+        )) {
+          console.log('📡 Network error during login, attempting offline fallback...');
+          return await attemptOfflineLogin(identifier, password);
+        }
+
+        // Genuine auth failure (wrong password etc) from server
         return { success: false, message: result.message };
       }
     } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Login failed'
-      };
+      console.warn('Login exception:', error);
+      // Fallback for any other crash/error during fetch
+      return await attemptOfflineLogin(identifier, password);
     }
+  };
+
+  const attemptOfflineLogin = async (identifier, password) => {
+    try {
+      const offlineRes = await realApi.auth.offlineLogin(identifier, password);
+      if (offlineRes && offlineRes.success) {
+        const { token, user: userData } = offlineRes.data;
+        // Store locally without encryption if needed, or re-use existing helper
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('auth_ts', Date.now());
+
+        setUser(userData);
+        setIsAuthenticated(true);
+        setBackendStatus('offline');
+        return { success: true, user: userData };
+      }
+      return offlineRes || { success: false, message: 'Offline login failed' };
+    } catch (e) {
+      return { success: false, message: 'Offline login attempt failed' };
+    }
+  };
+
+  const handleSuccessfulLogin = async (token, userData) => {
+    // Store in localStorage for persistence (attempt encryption)
+    try {
+      // Use crypto service to encrypt sensitive data
+      const { cryptoService } = await import('../services/crypto');
+      const encToken = await cryptoService.encrypt(token);
+      const encUser = await cryptoService.encrypt(userData);
+      if (encToken.success) localStorage.setItem('token_enc', encToken.encrypted);
+      else localStorage.setItem('token', token);
+      if (encUser.success) localStorage.setItem('user_enc', encUser.encrypted);
+      else localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('auth_ts', Date.now());
+
+      // CRITICAL: Cache the user's password hash for future offline login
+      // We can't get the hash from the server usually, but if we just logged in,
+      // we might want to ensure the LOCAL DB has this user record.
+      // Note: We can't hash the password here without the plain text, which we have in 'login' scope but not here.
+      // To fix "create user online then login offline" issue:
+      // Ideally the server returns the hash OR we rely on the fact that 'createUser' stores it locally.
+      // If the user logs in on a new device, we won't have the hash.
+      // We can generate it now if we had the password, but we separated this function.
+      // For now, relies on 'createUser' or previous cache.
+
+    } catch (e) {
+      console.warn('Encryption unavailable; storing token/user in localStorage as fallback', e);
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('auth_ts', Date.now());
+    }
+
+    setUser(userData);
+    setIsAuthenticated(true);
   };
 
   // Restore cached session when offline

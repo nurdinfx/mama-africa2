@@ -319,27 +319,7 @@ const Login = () => {
                     </div>
                   )}
 
-                  {/* Offline cached session shortcut */}
-                  {!navigator.onLine && cachedAvailable && (
-                    <div className="mb-4">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const res = await restoreCachedSession();
-                          if (res.success) {
-                            await prefetchDashboardData();
-                            navigate('/pos', { replace: true });
-                          } else {
-                            setError('No cached session available');
-                          }
-                        }}
-                        className="w-full bg-yellow-400 text-black font-bold py-3 rounded-2xl shadow-inner text-sm"
-                      >
-                        Use cached session (Offline)
-                      </button>
-                      <p className="text-xs text-white/60 mt-2">You are offline — using a previously cached session. Some features may be unavailable.</p>
-                    </div>
-                  )}
+
 
                   <div className="space-y-5">
                     <div className="relative group">
@@ -386,10 +366,7 @@ const Login = () => {
                     </div>
                   </div>
 
-                  {/* Offline hint for local accounts */}
-                  {!navigator.onLine && (
-                    <div className="mb-4 text-xs text-white/70">You're offline — use "Create local account" to create a user that can sign in on this device.</div>
-                  )}
+
 
                   <div className="pt-4">
                     <button
@@ -410,98 +387,14 @@ const Login = () => {
                       )}
                     </button>
 
-                    {/* Offline options */}
-                    <div className="mt-3 text-center space-y-2">
-                      {!navigator.onLine && cachedAvailable && (
-                        <div>
-                          <button
-                            type="button"
-                            onClick={handleResumeCached}
-                            className="w-full bg-white/10 text-white hover:bg-white/20 py-2 rounded-lg font-semibold"
-                          >
-                            Resume cached session
-                          </button>
-                        </div>
-                      )}
-
-                      {!navigator.onLine && (
-                        <div>
-                          <button
-                            type="button"
-                            onClick={handleOfflineLogin}
-                            className="w-full bg-white/10 text-white hover:bg-white/20 py-2 rounded-lg font-semibold"
-                          >
-                            Offline login (use credentials)
-                          </button>
-                        </div>
-                      )}
-
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setShowRegister(!showRegister)}
-                          className="text-white/80 underline text-sm hover:text-white"
-                        >
-                          {showRegister ? 'Hide' : 'Create local account (works offline)'}
-                        </button>
-                      </div>
+                    {/* Unified Footer - Clean Professional Look */}
+                    <div className="mt-4 text-center">
+                      <p className="text-white/40 text-xs tracking-wider">
+                        SECURE ACCESS • RESTRICTED AREA
+                      </p>
                     </div>
 
-                    {showRegister && (
-                      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <div className="mb-2 text-sm text-yellow-800 font-semibold">Create a local user (available while offline)</div>
-                        {regError && <div className="mb-2 text-sm text-red-600">{regError}</div>}
-                        {regSuccess && <div className="mb-2 text-sm text-green-600">{regSuccess}</div>}
-                        <div className="grid grid-cols-1 gap-2">
-                          <input name="name" placeholder="Full name" value={registerData.name} onChange={(e) => setRegisterData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="username" placeholder="Username" value={registerData.username} onChange={(e) => setRegisterData(prev => ({ ...prev, username: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="email" placeholder="Email" value={registerData.email} onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="password" type="password" placeholder="Password" value={registerData.password} onChange={(e) => setRegisterData(prev => ({ ...prev, password: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="confirmPassword" type="password" placeholder="Confirm password" value={registerData.confirmPassword} onChange={(e) => setRegisterData(prev => ({ ...prev, confirmPassword: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <div className="flex gap-2 mt-2">
-                            <button onClick={async () => {
-                              // Submit register
-                              setRegError(''); setRegSuccess('');
-                              if (!registerData.name.trim()) { setRegError('Name is required'); return; }
-                              if (!registerData.password || registerData.password.length < 6) { setRegError('Password must be at least 6 characters'); return; }
-                              if (registerData.password !== registerData.confirmPassword) { setRegError('Passwords do not match'); return; }
-                              try {
-                                setRegLoading(true);
-                                const payload = { name: registerData.name, username: registerData.username || registerData.email, email: registerData.email || registerData.username, password: registerData.password, role: registerData.role };
-                                const res = await realApi.register(payload);
-                                if (res && res.success) {
-                                  setRegSuccess(res.message || 'Registered successfully');
-                                  // Prefill login identifier for convenience
-                                  setFormData(prev => ({ ...prev, identifier: payload.email || payload.username }));
-                                  setRegisterData({ name: '', username: '', email: '', password: '', confirmPassword: '', role: 'waiter' });
-                                  setShowRegister(false);
-                                  alert(res.message || 'User created locally and can sign in while offline');
 
-                                  // Auto-login the newly created local user for immediate access
-                                  try {
-                                    // Small delay to ensure IndexedDB writes are settled in all browsers
-                                    await new Promise(res => setTimeout(res, 100));
-                                    const loginRes = await login(payload.email || payload.username, payload.password);
-                                    if (loginRes && loginRes.success) {
-                                      await prefetchDashboardData();
-                                      navigate('/pos', { replace: true });
-                                    }
-                                  } catch (e) { /* ignore auto-login failures */ }
-                                } else {
-                                  setRegError(res.message || 'Registration failed');
-                                }
-                              } catch (e) {
-                                console.error('Register failed', e);
-                                setRegError(e.message || 'Registration failed');
-                              } finally {
-                                setRegLoading(false);
-                              }
-                            }} className="px-3 py-2 rounded bg-yellow-400 text-black font-medium">Create</button>
-                            <button onClick={() => { setShowRegister(false); setRegError(''); setRegSuccess(''); }} className="px-3 py-2 rounded border">Cancel</button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                   </div>
                 </form>
