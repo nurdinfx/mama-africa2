@@ -33,23 +33,27 @@ export const AuthProvider = ({ children }) => {
       console.log('🔐 Initializing authentication...');
 
       try {
-        // Test backend connection - fast fail
-        let connectionWorking = false;
-        try {
-          const connectionTest = await realApi.testConnection();
-          connectionWorking = connectionTest.success;
-          setBackendStatus(connectionWorking ? 'connected' : 'disconnected');
-        } catch (e) {
-          setBackendStatus('disconnected');
-        }
-
-        // Check for persistent storage (localStorage)
+        // 1. Check for persistent storage (localStorage) first
         const token = localStorage.getItem('token');
         const savedUser = localStorage.getItem('user');
 
+        // 2. Determine connection status
+        let connectionWorking = false;
+        try {
+          if (navigator.onLine) {
+            const connectionTest = await realApi.testConnection();
+            connectionWorking = connectionTest.success;
+          }
+        } catch (e) {
+          console.warn('Connection test failed (likely offline or timeout)');
+        }
+
+        setBackendStatus(connectionWorking ? 'connected' : (navigator.onLine ? 'disconnected' : 'offline'));
+
+        // 3. Auth Logic
         if (token && savedUser) {
           try {
-            // If online, validate. If offline, trust local storage.
+            // CASE A: Online and connected -> Validate with server
             if (connectionWorking) {
               const userResponse = await realApi.getMe();
               if (userResponse.success) {
@@ -57,33 +61,50 @@ export const AuthProvider = ({ children }) => {
                 setUser(userData);
                 setIsAuthenticated(true);
               } else {
-                // Token invalid
+                // Token invalid on server
+                console.warn('Token rejected by server, clearing session');
                 clearAuthData();
               }
-            } else {
-              // Offline fallback 
-              console.log('📡 Offline mode: Restoring user from local storage');
-              setUser(JSON.parse(savedUser));
-              setIsAuthenticated(true);
+            }
+            // CASE B: Offline or server unreachable -> Trust local storage
+            else {
+              console.log('📡 Offline/Disconnected mode: Restoring user from local storage');
+              try {
+                const parsedUser = JSON.parse(savedUser);
+                if (parsedUser) {
+                  setUser(parsedUser);
+                  setIsAuthenticated(true);
+                } else {
+                  clearAuthData();
+                }
+              } catch (e) {
+                console.error('Failed to parse saved user JSON', e);
+                clearAuthData();
+              }
             }
           } catch (error) {
             // If validation fails hard (e.g. 401), clear.
-            // But if just network error, keep user logged in.
             if (error?.response?.status === 401) {
+              console.warn('401 during init, clearing auth');
               clearAuthData();
             } else {
-              // Assume offline/network error
-              console.log('📡 Network error during auth check: Restoring user from local storage');
-              setUser(JSON.parse(savedUser));
-              setIsAuthenticated(true);
+              // Assume offline/network error - Keep session!
+              console.log('📡 Network error during auth check: Restoring user from local storage (Fallback)');
+              try {
+                const parsedUser = JSON.parse(savedUser);
+                setUser(parsedUser);
+                setIsAuthenticated(true);
+              } catch (e) {
+                clearAuthData();
+              }
             }
           }
         } else {
           // No active session
-          clearAuthData();
+          clearAuthData(); // ensuring state is clean
         }
       } catch (error) {
-        console.error('Auth Init Error:', error);
+        console.error('Auth Init Critical Error:', error);
         setBackendStatus('error');
       } finally {
         setLoading(false);
@@ -244,7 +265,7 @@ export const AuthProvider = ({ children }) => {
       console.warn('navigate failed; unable to redirect to /login');
     }
     return { success: true };
-  }; 
+  };
 
   const switchToDemo = async (role = 'manager') => {
     const demoToken = `demo-${role}-${Date.now()}`;

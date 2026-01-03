@@ -247,14 +247,22 @@ const offlineLoginFallback = async (identifier, password) => {
     console.debug('Offline users in DB:', users && users.length);
 
     const idNormalized = (identifier || '').toString().trim().toLowerCase();
-    let found = (users || []).find(u => {
+
+    // Helper to check match
+    const isMatch = (u) => {
       try {
+        if (!u) return false;
         const email = (u.emailLower || u.email || '').toString().toLowerCase();
         const username = (u.usernameLower || u.username || '').toString().toLowerCase();
         const id = (u.id || u._id || '').toString();
+        // Also check name if unique enough (optional, but helpful for simple offline setups)
+        // const name = (u.name || '').toString().toLowerCase();
+
         return email === idNormalized || username === idNormalized || id === identifier;
       } catch (e) { return false; }
-    });
+    };
+
+    let found = (users || []).find(isMatch);
 
     if (!found) {
       // Try a secondary search using local users_list cache (in case DB misses due to recent writes)
@@ -263,48 +271,75 @@ const offlineLoginFallback = async (identifier, password) => {
         if (raw) {
           const parsed = JSON.parse(raw);
           const arr = Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed) ? parsed : []);
-          const idNorm = (identifier || '').toString().trim().toLowerCase();
           const second = (arr || []).find(u => {
+            // Re-use match logic or expanded logic
             try {
               const email = (u.email || u.emailLower || '').toString().toLowerCase();
               const username = (u.username || u.usernameLower || '').toString().toLowerCase();
-              const name = (u.name || '').toString().toLowerCase();
+              const name = (u.name || '').toString().toLowerCase(); // Match name too for easier access?
               const phone = (u.phone || '').toString();
-              return email === idNorm || username === idNorm || name === idNorm || phone === identifier;
+              return email === idNormalized || username === idNormalized || name === idNormalized || phone === identifier;
             } catch (e) { return false; }
           });
+
           if (second) {
             console.debug('Offline login fallback: matched user via users_list cache', second);
             found = second;
+
+            // If we found it in cache but not in DB (rare), try to put it in DB for next time if it has hash
+            if (found.passwordHash) {
+              try {
+                await dbService.put('users', { ...found, _id: found._id || found.id });
+              } catch (e) { }
+            }
           }
         }
       } catch (e) { console.debug('users_list cache lookup failed', e); }
 
       if (!found) {
-        return { success: false, message: 'Offline login failed: user not found. Please log in once while online to enable offline login.' };
+        return { success: false, message: 'User not found offline. Please log in online first to sync this account.' };
       }
     }
 
     if (!found.passwordHash) {
       console.warn('Offline login fallback: user has no local password hash', found);
-      return { success: false, message: 'Offline login failed: no local password set. Please sign in while online to cache credentials for offline use.' };
+      return { success: false, message: 'No offline credentials found. Please sign in online once to enable offline access.' };
     }
 
     const { verifyPassword } = await import('../services/password');
     const ok = await verifyPassword(password, found.passwordHash);
+
     console.debug('Offline password verification result:', ok, 'for', found && (found.username || found.email || found._id));
+
     if (ok) {
       const token = `local-${found._id || found.id}-${Date.now()}`;
+
+      const userData = {
+        _id: found._id || found.id,
+        name: found.name,
+        email: found.email,
+        username: found.username,
+        role: found.role
+      };
+
+      // Set session data
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify({ _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role }));
-      return { success: true, status: 200, data: { token, user: { _id: found._id || found.id, name: found.name, email: found.email, username: found.username, role: found.role } }, message: 'Logged in offline' };
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('auth_ts', Date.now());
+
+      return {
+        success: true,
+        status: 200,
+        data: { token, user: userData },
+        message: 'Logged in offline successfully'
+      };
     } else {
       console.warn('Offline login fallback: password mismatch for user', found.username || found.email);
-      return { success: false, message: 'Offline login failed: invalid password' };
+      return { success: false, message: 'Incorrect password (offline verification)' };
     }
   } catch (e) {
     console.warn('Offline login fallback failed', e);
-    return { success: false, message: 'Offline login failed: error' };
+    return { success: false, message: 'Offline login system error' };
   }
 };
 
@@ -473,7 +508,7 @@ export const purchaseAPI = {
       try {
         const cached = await (await import('../services/db')).dbService.get('purchases', id);
         if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' };
-      } catch (e) {}
+      } catch (e) { }
       return handleApiError(error, 'getPurchase');
     }
   },
@@ -482,7 +517,7 @@ export const purchaseAPI = {
     try {
       const res = await api.post('/purchases', data);
       if (res && res.success && res.data) {
-        try { (await import('../services/db')).dbService.put('purchases', res.data); } catch (e) {}
+        try { (await import('../services/db')).dbService.put('purchases', res.data); } catch (e) { }
       }
       return res;
     } catch (error) {
@@ -502,7 +537,7 @@ export const purchaseAPI = {
     try {
       const res = await api.put(`/purchases/${id}`, data);
       if (res && res.success && res.data) {
-        try { (await import('../services/db')).dbService.put('purchases', res.data); } catch (e) {}
+        try { (await import('../services/db')).dbService.put('purchases', res.data); } catch (e) { }
       }
       return res;
     } catch (error) {
@@ -520,7 +555,7 @@ export const purchaseAPI = {
   deletePurchase: async (id) => {
     try {
       const res = await api.delete(`/purchases/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('purchases', id); } catch (e) {} }
+      if (res && res.success) { try { (await import('../services/db')).dbService.delete('purchases', id); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -579,7 +614,7 @@ export const purchaseAPI = {
   createPurchaseOrder: async (data) => {
     try {
       const res = await api.post('/purchase-orders', data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('purchase_orders', res.data); } catch (e) {} }
+      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('purchase_orders', res.data); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -597,7 +632,7 @@ export const purchaseAPI = {
   updatePurchaseOrder: async (id, data) => {
     try {
       const res = await api.put(`/purchase-orders/${id}`, data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('purchase_orders', res.data); } catch (e) {} }
+      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('purchase_orders', res.data); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -614,7 +649,7 @@ export const purchaseAPI = {
   deletePurchaseOrder: async (id) => {
     try {
       const res = await api.delete(`/purchase-orders/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('purchase_orders', id); } catch (e) {} }
+      if (res && res.success) { try { (await import('../services/db')).dbService.delete('purchase_orders', id); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -635,7 +670,7 @@ export const purchaseAPI = {
         console.warn('Offline: queuing purchase order approval');
         await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/purchase-orders/${id}/approve`, method: 'PUT' });
         // mark locally as pending approval
-        try { const existing = await (await import('../services/db')).dbService.get('purchase_orders', id); if (existing) { existing.approvalPending = true; await (await import('../services/db')).dbService.put('purchase_orders', existing); } } catch (e) {}
+        try { const existing = await (await import('../services/db')).dbService.get('purchase_orders', id); if (existing) { existing.approvalPending = true; await (await import('../services/db')).dbService.put('purchase_orders', existing); } } catch (e) { }
         return { success: true, queued: true, message: 'Queued purchase order approval (offline)' };
       }
       return handleApiError(error, 'approvePurchaseOrder');
@@ -658,7 +693,7 @@ export const supplierAPI = {
     try {
       return await api.get(`/suppliers/${id}`);
     } catch (error) {
-      try { const cached = await (await import('../services/db')).dbService.get('suppliers', id); if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' }; } catch (e) {}
+      try { const cached = await (await import('../services/db')).dbService.get('suppliers', id); if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' }; } catch (e) { }
       return handleApiError(error, 'getSupplier');
     }
   },
@@ -666,7 +701,7 @@ export const supplierAPI = {
   createSupplier: async (data) => {
     try {
       const res = await api.post('/suppliers', data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) {} }
+      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -684,7 +719,7 @@ export const supplierAPI = {
   updateSupplier: async (id, data) => {
     try {
       const res = await api.put(`/suppliers/${id}`, data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) {} }
+      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -701,7 +736,7 @@ export const supplierAPI = {
   deleteSupplier: async (id) => {
     try {
       const res = await api.delete(`/suppliers/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('suppliers', id); } catch (e) {} }
+      if (res && res.success) { try { (await import('../services/db')).dbService.delete('suppliers', id); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -817,7 +852,7 @@ export const orderAPI = {
         const offlineOrders = await (await import('../services/db')).dbService.getAll('offline_orders');
         const found = (offlineOrders || []).find(o => o.tempId === id || o._id === id || o.id === id);
         if (found) return { success: true, data: found, message: 'Loaded offline order' };
-      } catch (e) {}
+      } catch (e) { }
       return handleApiError(error, 'getOrder');
     }
   },
@@ -918,7 +953,7 @@ export const customerAPI = {
     try {
       const res = await api.post('/customers', data);
       if (res && res.success && res.data) {
-        try { (await import('../services/db')).dbService.put('customers', res.data); } catch (e) {}
+        try { (await import('../services/db')).dbService.put('customers', res.data); } catch (e) { }
       }
       return res;
     } catch (error) {
@@ -938,7 +973,7 @@ export const customerAPI = {
     try {
       const res = await api.put(`/customers/${id}`, data);
       if (res && res.success && res.data) {
-        try { (await import('../services/db')).dbService.put('customers', res.data); } catch (e) {}
+        try { (await import('../services/db')).dbService.put('customers', res.data); } catch (e) { }
       }
       return res;
     } catch (error) {
@@ -956,7 +991,7 @@ export const customerAPI = {
   deleteCustomer: async (id) => {
     try {
       const res = await api.delete(`/customers/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('customers', id); } catch (e) {} }
+      if (res && res.success) { try { (await import('../services/db')).dbService.delete('customers', id); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -1145,7 +1180,7 @@ export const expenseAPI = {
     try {
       return await api.get(`/expenses/${id}`);
     } catch (error) {
-      try { const cached = await (await import('../services/db')).dbService.get('expenses', id); if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' }; } catch (e) {}
+      try { const cached = await (await import('../services/db')).dbService.get('expenses', id); if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' }; } catch (e) { }
       return handleApiError(error, 'getExpense');
     }
   },
@@ -1153,7 +1188,7 @@ export const expenseAPI = {
   createExpense: async (data) => {
     try {
       const res = await api.post('/expenses', data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) {} }
+      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -1171,7 +1206,7 @@ export const expenseAPI = {
   updateExpense: async (id, data) => {
     try {
       const res = await api.put(`/expenses/${id}`, data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) {} }
+      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -1188,7 +1223,7 @@ export const expenseAPI = {
   deleteExpense: async (id) => {
     try {
       const res = await api.delete(`/expenses/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('expenses', id); } catch (e) {} }
+      if (res && res.success) { try { (await import('../services/db')).dbService.delete('expenses', id); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -1217,7 +1252,7 @@ export const transactionAPI = {
     try {
       return await api.get(`/finance/transactions/${id}`);
     } catch (error) {
-      try { const cached = await (await import('../services/db')).dbService.get('transactions', id); if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' }; } catch (e) {}
+      try { const cached = await (await import('../services/db')).dbService.get('transactions', id); if (cached) return { success: true, data: cached, message: 'Loaded from offline cache' }; } catch (e) { }
       return handleApiError(error, 'getTransaction');
     }
   },
@@ -1225,7 +1260,7 @@ export const transactionAPI = {
   createTransaction: async (data) => {
     try {
       const res = await api.post('/finance/transactions', data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('transactions', res.data); } catch (e) {} }
+      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('transactions', res.data); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
@@ -1367,9 +1402,13 @@ export const settingsAPI = {
 export const userAPI = {
   getUsers: async (params = {}) => {
     try {
+      if (!navigator.onLine) {
+        console.warn('Offline mode detected: Fetching users from IDB directly');
+        throw new Error('Offline mode');
+      }
       return await api.get('/users', { params });
     } catch (error) {
-      console.warn('Network failed; loading users from IDB');
+      console.warn('Network request failed or offline; loading users from IDB');
       try {
         const cached = await (await import('../services/db')).dbService.getAll('users');
         return { success: true, data: cached || [], message: 'Loaded from offline cache' };
@@ -1390,7 +1429,7 @@ export const userAPI = {
         const all = await (await import('../services/db')).dbService.getAll('users');
         const found = (all || []).find(u => u.id === id || u._id === id);
         if (found) return { success: true, data: found, message: 'Loaded from offline cache' };
-      } catch (e) {}
+      } catch (e) { }
       return handleApiError(error, 'getUser');
     }
   },
@@ -1399,7 +1438,7 @@ export const userAPI = {
     try {
       const res = await api.post('/users', data);
       if (res && res.success && res.data) {
-        try { (await import('../services/db')).dbService.put('users', res.data); } catch (e) {}
+        try { (await import('../services/db')).dbService.put('users', res.data); } catch (e) { }
       }
       return res;
     } catch (error) {
@@ -1427,6 +1466,12 @@ export const userAPI = {
             isLocal: true
           };
           await (await import('../services/db')).dbService.put('users', record);
+
+          // Verify write
+          const verify = await (await import('../services/db')).dbService.get('users', id);
+          if (!verify) {
+            throw new Error('Verification failed: User was not stored in offline DB');
+          }
 
           // Update local users cache so UI updates immediately
           try {
@@ -1461,7 +1506,7 @@ export const userAPI = {
           });
 
           // Ensure other tabs and UI update
-          try { window.dispatchEvent(new Event('users-updated')); } catch (e) {}
+          try { window.dispatchEvent(new Event('users-updated')); } catch (e) { }
 
           return { success: true, queued: true, data: { _id: id, ...record }, message: 'Created user locally and queued for sync' };
         } catch (e) {
@@ -1477,7 +1522,7 @@ export const userAPI = {
     try {
       const res = await api.put(`/users/${id}`, data);
       if (res && res.success && res.data) {
-        try { (await import('../services/db')).dbService.put('users', res.data); } catch (e) {}
+        try { (await import('../services/db')).dbService.put('users', res.data); } catch (e) { }
       }
       return res;
     } catch (error) {
@@ -1520,7 +1565,7 @@ export const userAPI = {
   deleteUser: async (id) => {
     try {
       const res = await api.delete(`/users/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('users', id); } catch (e) {} }
+      if (res && res.success) { try { (await import('../services/db')).dbService.delete('users', id); } catch (e) { } }
       return res;
     } catch (error) {
       if (!navigator.onLine) {

@@ -149,10 +149,10 @@ const Login = () => {
         // treat like normal login success
         await prefetchDashboardData();
       } else {
-        setError(res.message || 'Offline login failed');
+        setError(res.message || 'Offline login failed. Please ensure you have logged in online at least once on this device.');
       }
     } catch (e) {
-      setError(e.message || 'Offline login failed');
+      setError(e.message || 'Offline login system error');
     } finally {
       setLoading(false);
     }
@@ -243,7 +243,7 @@ const Login = () => {
 
             <div className="space-y-4">
               <h1 className="text-6xl xl:text-7xl font-black text-white leading-tight drop-shadow-lg">
-                HUDI <span className="text-blue-500">POS</span>
+                HUDI-SOFT <span className="text-blue-500">POS</span>
               </h1>
               <p className="text-xl text-white/80 font-medium max-w-lg leading-relaxed drop-shadow-md">
                 Streamline your operations with our high-performance point of sale system. Designed for speed, reliability, and ease of use.
@@ -453,13 +453,13 @@ const Login = () => {
                         {regError && <div className="mb-2 text-sm text-red-600">{regError}</div>}
                         {regSuccess && <div className="mb-2 text-sm text-green-600">{regSuccess}</div>}
                         <div className="grid grid-cols-1 gap-2">
-                          <input name="name" placeholder="Full name" value={registerData.name} onChange={(e)=> setRegisterData(prev=>({...prev, name: e.target.value}))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="username" placeholder="Username" value={registerData.username} onChange={(e)=> setRegisterData(prev=>({...prev, username: e.target.value}))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="email" placeholder="Email" value={registerData.email} onChange={(e)=> setRegisterData(prev=>({...prev, email: e.target.value}))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="password" type="password" placeholder="Password" value={registerData.password} onChange={(e)=> setRegisterData(prev=>({...prev, password: e.target.value}))} className="w-full px-3 py-2 rounded border border-yellow-200" />
-                          <input name="confirmPassword" type="password" placeholder="Confirm password" value={registerData.confirmPassword} onChange={(e)=> setRegisterData(prev=>({...prev, confirmPassword: e.target.value}))} className="w-full px-3 py-2 rounded border border-yellow-200" />
+                          <input name="name" placeholder="Full name" value={registerData.name} onChange={(e) => setRegisterData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
+                          <input name="username" placeholder="Username" value={registerData.username} onChange={(e) => setRegisterData(prev => ({ ...prev, username: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
+                          <input name="email" placeholder="Email" value={registerData.email} onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
+                          <input name="password" type="password" placeholder="Password" value={registerData.password} onChange={(e) => setRegisterData(prev => ({ ...prev, password: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
+                          <input name="confirmPassword" type="password" placeholder="Confirm password" value={registerData.confirmPassword} onChange={(e) => setRegisterData(prev => ({ ...prev, confirmPassword: e.target.value }))} className="w-full px-3 py-2 rounded border border-yellow-200" />
                           <div className="flex gap-2 mt-2">
-                            <button onClick={async ()=>{
+                            <button onClick={async () => {
                               // Submit register
                               setRegError(''); setRegSuccess('');
                               if (!registerData.name.trim()) { setRegError('Name is required'); return; }
@@ -473,7 +473,7 @@ const Login = () => {
                                   setRegSuccess(res.message || 'Registered successfully');
                                   // Prefill login identifier for convenience
                                   setFormData(prev => ({ ...prev, identifier: payload.email || payload.username }));
-                                  setRegisterData({ name:'', username:'', email:'', password:'', confirmPassword:'', role:'waiter'});
+                                  setRegisterData({ name: '', username: '', email: '', password: '', confirmPassword: '', role: 'waiter' });
                                   setShowRegister(false);
                                   alert(res.message || 'User created locally and can sign in while offline');
 
@@ -497,7 +497,7 @@ const Login = () => {
                                 setRegLoading(false);
                               }
                             }} className="px-3 py-2 rounded bg-yellow-400 text-black font-medium">Create</button>
-                            <button onClick={()=>{ setShowRegister(false); setRegError(''); setRegSuccess(''); }} className="px-3 py-2 rounded border">Cancel</button>
+                            <button onClick={() => { setShowRegister(false); setRegError(''); setRegSuccess(''); }} className="px-3 py-2 rounded border">Cancel</button>
                           </div>
                         </div>
                       </div>

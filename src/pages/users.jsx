@@ -206,7 +206,7 @@ const Users = () => {
       if (isNaN(d)) return '-';
       return d.toLocaleString();
     } catch (e) { return '-'; }
-  }; 
+  };
 
   if (loading) {
     return (
@@ -313,10 +313,10 @@ const Users = () => {
                     <div className="flex items-center gap-2">
                       <span>{u.name}</span>
                       {u.isLocal && (
-                        <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">Local</span>
+                        <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800 border border-yellow-200">Local (Offline)</span>
                       )}
                       {u.isOfflineUpdate && (
-                        <span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800">Pending</span>
+                        <span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800 border border-orange-200">Pending Sync</span>
                       )}
                       {u.isDeleted && (
                         <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">Deleted</span>
@@ -502,7 +502,7 @@ const UserModal = ({ user, onClose, onSave, currentUser }) => {
               <div className="p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg text-sm">
                 <strong>Offline:</strong> You're offline. Creating this user will store the account locally — they can sign in on this device while offline. The account will sync to the server when the device reconnects.
               </div>
-            )
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name *
@@ -655,8 +655,8 @@ const UserModal = ({ user, onClose, onSave, currentUser }) => {
             </div>
           </form>
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 
