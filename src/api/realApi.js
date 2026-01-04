@@ -522,11 +522,11 @@ export const purchaseAPI = {
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing purchase create and saving locally');
-        const id = `temp_purchase_${Date.now()}`;
+        console.warn('Offline: queuing purchase create');
+        const id = `temp_pur_${Date.now()}`;
         const temp = { ...data, id, _id: id, isOffline: true, createdAt: new Date().toISOString() };
-        try { await (await import('../services/db')).dbService.put('purchases', temp); } catch (e) { console.warn('Failed to store temp purchase', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + '/purchases', method: 'POST', body: temp });
+        try { await (await import('../services/db')).dbService.put('purchases', temp); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/purchases', method: 'POST', body: data });
         return { success: true, queued: true, data: temp, message: 'Queued purchase create (offline)' };
       }
       return handleApiError(error, 'createPurchase');
@@ -542,11 +542,14 @@ export const purchaseAPI = {
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing purchase update and applying locally');
-        const local = { ...(data || {}), id, _id: id, updatedAt: new Date().toISOString(), isOfflineUpdate: true };
-        try { await (await import('../services/db')).dbService.put('purchases', local); } catch (e) { console.warn('Failed to update local purchase', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/purchases/${id}`, method: 'PUT', body: data });
-        return { success: true, queued: true, data: local, message: 'Queued purchase update (offline)' };
+        console.warn('Offline: queuing purchase update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('purchases', id);
+          const updated = { ...existing, ...data, isOfflineUpdate: true };
+          await (await import('../services/db')).dbService.put('purchases', updated);
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/purchases/${id}`, method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued purchase update (offline)' };
       }
       return handleApiError(error, 'updatePurchase');
     }
@@ -555,13 +558,21 @@ export const purchaseAPI = {
   deletePurchase: async (id) => {
     try {
       const res = await api.delete(`/purchases/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('purchases', id); } catch (e) { } }
+      if (res && res.success) {
+        try { (await import('../services/db')).dbService.delete('purchases', id); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing purchase delete and marking locally');
-        try { const existing = await (await import('../services/db')).dbService.get('purchases', id); if (existing) { existing._deleted = true; await (await import('../services/db')).dbService.put('purchases', existing); } } catch (e) { console.warn('Failed to mark local purchase deleted', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/purchases/${id}`, method: 'DELETE' });
+        console.warn('Offline: queuing purchase delete');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('purchases', id);
+          if (existing) {
+            existing._deleted = true;
+            await (await import('../services/db')).dbService.put('purchases', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/purchases/${id}`, method: 'DELETE' });
         return { success: true, queued: true, message: 'Queued purchase delete (offline)' };
       }
       return handleApiError(error, 'deletePurchase');
@@ -701,15 +712,17 @@ export const supplierAPI = {
   createSupplier: async (data) => {
     try {
       const res = await api.post('/suppliers', data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) { } }
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing supplier create and saving locally');
-        const id = `temp_supplier_${Date.now()}`;
+        console.warn('Offline: queuing supplier create');
+        const id = `temp_supp_${Date.now()}`;
         const temp = { ...data, id, _id: id, isOffline: true, createdAt: new Date().toISOString() };
-        try { await (await import('../services/db')).dbService.put('suppliers', temp); } catch (e) { console.warn('Failed to store temp supplier', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + '/suppliers', method: 'POST', body: temp });
+        try { await (await import('../services/db')).dbService.put('suppliers', temp); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/suppliers', method: 'POST', body: data });
         return { success: true, queued: true, data: temp, message: 'Queued supplier create (offline)' };
       }
       return handleApiError(error, 'createSupplier');
@@ -719,15 +732,20 @@ export const supplierAPI = {
   updateSupplier: async (id, data) => {
     try {
       const res = await api.put(`/suppliers/${id}`, data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) { } }
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('suppliers', res.data); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing supplier update and applying locally');
-        const local = { ...(data || {}), id, _id: id, updatedAt: new Date().toISOString(), isOfflineUpdate: true };
-        try { await (await import('../services/db')).dbService.put('suppliers', local); } catch (e) { console.warn('Failed to update local supplier', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/suppliers/${id}`, method: 'PUT', body: data });
-        return { success: true, queued: true, data: local, message: 'Queued supplier update (offline)' };
+        console.warn('Offline: queuing supplier update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('suppliers', id);
+          const updated = { ...existing, ...data, isOfflineUpdate: true };
+          await (await import('../services/db')).dbService.put('suppliers', updated);
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/suppliers/${id}`, method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued supplier update (offline)' };
       }
       return handleApiError(error, 'updateSupplier');
     }
@@ -736,18 +754,26 @@ export const supplierAPI = {
   deleteSupplier: async (id) => {
     try {
       const res = await api.delete(`/suppliers/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('suppliers', id); } catch (e) { } }
+      if (res && res.success) {
+        try { (await import('../services/db')).dbService.delete('suppliers', id); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing supplier delete and marking locally');
-        try { const existing = await (await import('../services/db')).dbService.get('suppliers', id); if (existing) { existing._deleted = true; await (await import('../services/db')).dbService.put('suppliers', existing); } } catch (e) { console.warn('Failed to mark local supplier deleted', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/suppliers/${id}`, method: 'DELETE' });
+        console.warn('Offline: queuing supplier delete');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('suppliers', id);
+          if (existing) {
+            existing._deleted = true;
+            await (await import('../services/db')).dbService.put('suppliers', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/suppliers/${id}`, method: 'DELETE' });
         return { success: true, queued: true, message: 'Queued supplier delete (offline)' };
       }
       return handleApiError(error, 'deleteSupplier');
     }
-  }
+  },
 };
 
 // ========== PRODUCT API ==========
@@ -775,24 +801,64 @@ export const productAPI = {
 
   createProduct: async (data) => {
     try {
-      return await api.post('/products', data);
+      const res = await api.post('/products', data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('products', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing product create and saving locally');
+        const id = `temp_prod_${Date.now()}`;
+        const temp = { ...data, id, _id: id, isOffline: true, createdAt: new Date().toISOString() };
+        try { await (await import('../services/db')).dbService.put('products', temp); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/products', method: 'POST', body: data });
+        return { success: true, queued: true, data: temp, message: 'Queued product create (offline)' };
+      }
       return handleApiError(error, 'createProduct');
     }
   },
 
   updateProduct: async (id, data) => {
     try {
-      return await api.put(`/products/${id}`, data);
+      const res = await api.put(`/products/${id}`, data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('products', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing product update and applying locally');
+        const existing = await (await import('../services/db')).dbService.get('products', id);
+        const local = { ...(existing || {}), ...data, id, _id: id, updatedAt: new Date().toISOString(), isOfflineUpdate: true };
+        try { await (await import('../services/db')).dbService.put('products', local); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/products/${id}`, method: 'PUT', body: data });
+        return { success: true, queued: true, data: local, message: 'Queued product update (offline)' };
+      }
       return handleApiError(error, 'updateProduct');
     }
   },
 
   deleteProduct: async (id) => {
     try {
-      return await api.delete(`/products/${id}`);
+      const res = await api.delete(`/products/${id}`);
+      if (res && res.success) {
+        try { (await import('../services/db')).dbService.delete('products', id); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing product delete and marking locally');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('products', id);
+          if (existing) {
+            existing._deleted = true;
+            await (await import('../services/db')).dbService.put('products', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/products/${id}`, method: 'DELETE' });
+        return { success: true, queued: true, message: 'Queued product delete (offline)' };
+      }
       return handleApiError(error, 'deleteProduct');
     }
   },
@@ -820,8 +886,24 @@ export const productAPI = {
 
   updateStock: async (id, stockData) => {
     try {
-      return await api.patch(`/products/${id}/stock`, stockData);
+      const res = await api.patch(`/products/${id}/stock`, stockData);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('products', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing stock update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('products', id);
+          if (existing) {
+            existing.stock = (existing.stock || 0) + (stockData.adjustment || 0);
+            await (await import('../services/db')).dbService.put('products', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/products/${id}/stock`, method: 'PATCH', body: stockData });
+        return { success: true, queued: true, message: 'Queued stock update (offline)' };
+      }
       return handleApiError(error, 'updateStock');
     }
   }
@@ -879,16 +961,46 @@ export const orderAPI = {
 
   updateOrder: async (id, data) => {
     try {
-      return await api.put(`/orders/${id}`, data);
+      const res = await api.put(`/orders/${id}`, data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('offline_orders', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing order update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('offline_orders', id);
+          const updated = { ...existing, ...data, isOfflineUpdate: true };
+          await (await import('../services/db')).dbService.put('offline_orders', updated);
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/orders/${id}`, method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued order update (offline)' };
+      }
       return handleApiError(error, 'updateOrder');
     }
   },
 
   deleteOrder: async (id) => {
     try {
-      return await api.delete(`/orders/${id}`);
+      const res = await api.delete(`/orders/${id}`);
+      if (res && res.success) {
+        try { (await import('../services/db')).dbService.delete('offline_orders', id); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing order delete');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('offline_orders', id);
+          if (existing) {
+            existing._deleted = true;
+            await (await import('../services/db')).dbService.put('offline_orders', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/orders/${id}`, method: 'DELETE' });
+        return { success: true, queued: true, message: 'Queued order delete (offline)' };
+      }
       return handleApiError(error, 'deleteOrder');
     }
   },
@@ -903,16 +1015,49 @@ export const orderAPI = {
 
   updateOrderStatus: async (id, statusData) => {
     try {
-      return await api.put(`/orders/${id}/status`, statusData);
+      const res = await api.put(`/orders/${id}/status`, statusData);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('offline_orders', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing status update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('offline_orders', id);
+          if (existing) {
+            existing.status = statusData.status;
+            await (await import('../services/db')).dbService.put('offline_orders', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/orders/${id}/status`, method: 'PUT', body: statusData });
+        return { success: true, queued: true, message: 'Queued status update (offline)' };
+      }
       return handleApiError(error, 'updateOrderStatus');
     }
   },
 
   processPayment: async (id, paymentData) => {
     try {
-      return await api.post(`/orders/${id}/payment`, paymentData);
+      const res = await api.post(`/orders/${id}/payment`, paymentData);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('offline_orders', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing payment process');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('offline_orders', id);
+          if (existing) {
+            existing.paymentStatus = 'paid';
+            existing.paymentMethod = paymentData.paymentMethod;
+            await (await import('../services/db')).dbService.put('offline_orders', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/orders/${id}/payment`, method: 'POST', body: paymentData });
+        return { success: true, queued: true, message: 'Queued payment (offline)' };
+      }
       return handleApiError(error, 'processPayment');
     }
   },
@@ -959,10 +1104,10 @@ export const customerAPI = {
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing customer create and saving locally');
-        const id = `temp_customer_${Date.now()}`;
+        const id = `temp_cust_${Date.now()}`;
         const temp = { ...data, id, _id: id, isOffline: true, createdAt: new Date().toISOString() };
-        try { await (await import('../services/db')).dbService.put('customers', temp); } catch (e) { console.warn('Failed to store temp customer', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + '/customers', method: 'POST', body: temp });
+        try { await (await import('../services/db')).dbService.put('customers', temp); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/customers', method: 'POST', body: data });
         return { success: true, queued: true, data: temp, message: 'Queued customer create (offline)' };
       }
       return handleApiError(error, 'createCustomer');
@@ -979,9 +1124,10 @@ export const customerAPI = {
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing customer update and applying locally');
-        const local = { ...(data || {}), id, _id: id, updatedAt: new Date().toISOString(), isOfflineUpdate: true };
-        try { await (await import('../services/db')).dbService.put('customers', local); } catch (e) { console.warn('Failed to update local customer', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/customers/${id}`, method: 'PUT', body: data });
+        const existing = await (await import('../services/db')).dbService.get('customers', id);
+        const local = { ...(existing || {}), ...data, id, _id: id, updatedAt: new Date().toISOString(), isOfflineUpdate: true };
+        try { await (await import('../services/db')).dbService.put('customers', local); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/customers/${id}`, method: 'PUT', body: data });
         return { success: true, queued: true, data: local, message: 'Queued customer update (offline)' };
       }
       return handleApiError(error, 'updateCustomer');
@@ -991,13 +1137,21 @@ export const customerAPI = {
   deleteCustomer: async (id) => {
     try {
       const res = await api.delete(`/customers/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('customers', id); } catch (e) { } }
+      if (res && res.success) {
+        try { (await import('../services/db')).dbService.delete('customers', id); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing customer delete and marking locally');
-        try { const existing = await (await import('../services/db')).dbService.get('customers', id); if (existing) { existing._deleted = true; await (await import('../services/db')).dbService.put('customers', existing); } } catch (e) { console.warn('Failed to mark local customer deleted', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/customers/${id}`, method: 'DELETE' });
+        try {
+          const existing = await (await import('../services/db')).dbService.get('customers', id);
+          if (existing) {
+            existing._deleted = true;
+            await (await import('../services/db')).dbService.put('customers', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/customers/${id}`, method: 'DELETE' });
         return { success: true, queued: true, message: 'Queued customer delete (offline)' };
       }
       return handleApiError(error, 'deleteCustomer');
@@ -1086,8 +1240,22 @@ export const inventoryAPI = {
 
   updateInventory: async (id, data) => {
     try {
-      return await api.put(`/inventory/${id}`, data);
+      const res = await api.put(`/inventory/${id}`, data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('inventory', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing inventory update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('inventory', id);
+          const updated = { ...existing, ...data, isOfflineUpdate: true };
+          await (await import('../services/db')).dbService.put('inventory', updated);
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/inventory/${id}`, method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued inventory update (offline)' };
+      }
       return handleApiError(error, 'updateInventory');
     }
   },
@@ -1126,24 +1294,66 @@ export const tableAPI = {
 
   createTable: async (data) => {
     try {
-      return await api.post('/tables', data);
+      const res = await api.post('/tables', data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('tables', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing table create');
+        const id = `temp_table_${Date.now()}`;
+        const temp = { ...data, id, _id: id, isOffline: true };
+        try { await (await import('../services/db')).dbService.put('tables', temp); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/tables', method: 'POST', body: data });
+        return { success: true, queued: true, data: temp, message: 'Queued table create (offline)' };
+      }
       return handleApiError(error, 'createTable');
     }
   },
 
   updateTable: async (id, data) => {
     try {
-      return await api.put(`/tables/${id}`, data);
+      const res = await api.put(`/tables/${id}`, data);
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('tables', res.data); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing table update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('tables', id);
+          const updated = { ...existing, ...data, isOfflineUpdate: true };
+          await (await import('../services/db')).dbService.put('tables', updated);
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/tables/${id}`, method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued table update (offline)' };
+      }
       return handleApiError(error, 'updateTable');
     }
   },
 
   deleteTable: async (id) => {
     try {
-      return await api.delete(`/tables/${id}`);
+      const res = await api.delete(`/tables/${id}`);
+      if (res && res.success) {
+        try { (await import('../services/db')).dbService.delete('tables', id); } catch (e) { }
+      }
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing table delete');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('tables', id);
+          if (existing) {
+            existing._deleted = true;
+            await (await import('../services/db')).dbService.put('tables', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/tables/${id}`, method: 'DELETE' });
+        return { success: true, queued: true, message: 'Queued table delete (offline)' };
+      }
       return handleApiError(error, 'deleteTable');
     }
   },
@@ -1188,15 +1398,17 @@ export const expenseAPI = {
   createExpense: async (data) => {
     try {
       const res = await api.post('/expenses', data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) { } }
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing expense create and saving locally');
-        const id = `temp_expense_${Date.now()}`;
+        console.warn('Offline: queuing expense create');
+        const id = `temp_exp_${Date.now()}`;
         const temp = { ...data, id, _id: id, isOffline: true, createdAt: new Date().toISOString() };
-        try { await (await import('../services/db')).dbService.put('expenses', temp); } catch (e) { console.warn('Failed to store temp expense', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + '/expenses', method: 'POST', body: temp });
+        try { await (await import('../services/db')).dbService.put('expenses', temp); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/expenses', method: 'POST', body: data });
         return { success: true, queued: true, data: temp, message: 'Queued expense create (offline)' };
       }
       return handleApiError(error, 'createExpense');
@@ -1206,15 +1418,20 @@ export const expenseAPI = {
   updateExpense: async (id, data) => {
     try {
       const res = await api.put(`/expenses/${id}`, data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) { } }
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('expenses', res.data); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing expense update and applying locally');
-        const local = { ...(data || {}), id, _id: id, updatedAt: new Date().toISOString(), isOfflineUpdate: true };
-        try { await (await import('../services/db')).dbService.put('expenses', local); } catch (e) { console.warn('Failed to update local expense', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/expenses/${id}`, method: 'PUT', body: data });
-        return { success: true, queued: true, data: local, message: 'Queued expense update (offline)' };
+        console.warn('Offline: queuing expense update');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('expenses', id);
+          const updated = { ...existing, ...data, isOfflineUpdate: true };
+          await (await import('../services/db')).dbService.put('expenses', updated);
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/expenses/${id}`, method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued expense update (offline)' };
       }
       return handleApiError(error, 'updateExpense');
     }
@@ -1223,18 +1440,26 @@ export const expenseAPI = {
   deleteExpense: async (id) => {
     try {
       const res = await api.delete(`/expenses/${id}`);
-      if (res && res.success) { try { (await import('../services/db')).dbService.delete('expenses', id); } catch (e) { } }
+      if (res && res.success) {
+        try { (await import('../services/db')).dbService.delete('expenses', id); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
-        console.warn('Offline: queuing expense delete and marking locally');
-        try { const existing = await (await import('../services/db')).dbService.get('expenses', id); if (existing) { existing._deleted = true; await (await import('../services/db')).dbService.put('expenses', existing); } } catch (e) { console.warn('Failed to mark local expense deleted', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + `/expenses/${id}`, method: 'DELETE' });
+        console.warn('Offline: queuing expense delete');
+        try {
+          const existing = await (await import('../services/db')).dbService.get('expenses', id);
+          if (existing) {
+            existing._deleted = true;
+            await (await import('../services/db')).dbService.put('expenses', existing);
+          }
+        } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/expenses/${id}`, method: 'DELETE' });
         return { success: true, queued: true, message: 'Queued expense delete (offline)' };
       }
       return handleApiError(error, 'deleteExpense');
     }
-  }
+  },
 };
 
 // ========== TRANSACTION API (for financial data) ==========
@@ -1260,16 +1485,18 @@ export const transactionAPI = {
   createTransaction: async (data) => {
     try {
       const res = await api.post('/finance/transactions', data);
-      if (res && res.success && res.data) { try { (await import('../services/db')).dbService.put('transactions', res.data); } catch (e) { } }
+      if (res && res.success && res.data) {
+        try { (await import('../services/db')).dbService.put('transactions', res.data); } catch (e) { }
+      }
       return res;
     } catch (error) {
       if (!navigator.onLine) {
         console.warn('Offline: queuing transaction create and saving locally');
         const id = `temp_txn_${Date.now()}`;
         const temp = { ...data, id, _id: id, isOffline: true, createdAt: new Date().toISOString() };
-        try { await (await import('../services/db')).dbService.put('transactions', temp); } catch (e) { console.warn('Failed to store temp transaction', e); }
-        await (await import('../services/outbox')).outboxService.enqueue({ url: (await import('../config/api.config')).API_CONFIG.API_URL + '/finance/transactions', method: 'POST', body: temp });
-        return { success: true, queued: true, data: temp, message: 'Queued transaction create (offline)' };
+        try { await (await import('../services/db')).dbService.put('transactions', temp); } catch (e) { }
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/finance/transactions', method: 'POST', body: data });
+        return { success: true, queued: true, data: temp, message: 'Queued transaction (offline)' };
       }
       return handleApiError(error, 'createTransaction');
     }
@@ -1357,8 +1584,17 @@ export const settingsAPI = {
 
   updateSettings: async (data) => {
     try {
-      return await api.put('/settings', data);
+      const res = await api.put('/settings', data);
+      // For settings, we might not have a specific IDB store but we can cache in localStorage
+      localStorage.setItem('app_settings', JSON.stringify(data));
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing settings update');
+        localStorage.setItem('app_settings', JSON.stringify(data));
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + '/settings', method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued settings update (offline)' };
+      }
       return handleApiError(error, 'updateSettings');
     }
   },
@@ -1373,8 +1609,16 @@ export const settingsAPI = {
 
   updateBranchSettings: async (branchId, data) => {
     try {
-      return await api.put(`/settings/branch/${branchId}`, data);
+      const res = await api.put(`/settings/branch/${branchId}`, data);
+      localStorage.setItem(`branch_settings_${branchId}`, JSON.stringify(data));
+      return res;
     } catch (error) {
+      if (!navigator.onLine) {
+        console.warn('Offline: queuing branch settings update');
+        localStorage.setItem(`branch_settings_${branchId}`, JSON.stringify(data));
+        await (await import('../services/outbox')).outboxService.enqueue({ url: API_CONFIG.API_URL + `/settings/branch/${branchId}`, method: 'PUT', body: data });
+        return { success: true, queued: true, message: 'Queued branch settings update (offline)' };
+      }
       return handleApiError(error, 'updateBranchSettings');
     }
   },
@@ -1467,50 +1711,34 @@ export const userAPI = {
           };
           await (await import('../services/db')).dbService.put('users', record);
 
-          // Verify write
-          const verify = await (await import('../services/db')).dbService.get('users', id);
-          if (!verify) {
-            throw new Error('Verification failed: User was not stored in offline DB');
-          }
-
           // Update local users cache so UI updates immediately
           try {
             const key = 'users_list';
             const raw = localStorage.getItem(key);
+            let next = [];
             if (raw) {
               try {
                 const parsed = JSON.parse(raw);
                 const arr = Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed) ? parsed : []);
-                const next = [{ _id: id, ...record }, ...arr];
-                localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: next }));
+                next = [{ _id: id, ...record }, ...arr];
               } catch (e) {
-                localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: [{ _id: id, ...record }] }));
+                next = [{ _id: id, ...record }];
               }
             } else {
-              localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: [{ _id: id, ...record }] }));
+              next = [{ _id: id, ...record }];
             }
-            try { window.dispatchEvent(new Event('users-updated')); } catch (e) { }
-          } catch (e) { console.warn('Failed to update local users cache', e); }
-
-          // Enqueue an outbox entry so the server can be created when back online
-          // Verify the write and report debug info
-          try {
-            const stored = await (await import('../services/db')).dbService.get('users', id);
-            console.debug('Created local user stored in IDB:', stored);
-          } catch (e) { console.warn('Failed to verify stored user', e); }
+            localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: next }));
+            window.dispatchEvent(new Event('users-updated'));
+          } catch (e) { }
 
           await (await import('../services/outbox')).outboxService.enqueue({
-            url: (await import('../config/api.config')).API_CONFIG.API_URL + '/users',
+            url: API_CONFIG.API_URL + '/users',
             method: 'POST',
             body: { ...data }
           });
 
-          // Ensure other tabs and UI update
-          try { window.dispatchEvent(new Event('users-updated')); } catch (e) { }
-
           return { success: true, queued: true, data: { _id: id, ...record }, message: 'Created user locally and queued for sync' };
         } catch (e) {
-          console.warn('Failed to create local user', e);
           return handleApiError(error, 'createUser');
         }
       }

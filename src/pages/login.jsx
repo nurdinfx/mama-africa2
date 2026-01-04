@@ -15,12 +15,6 @@ const Login = () => {
   const [activeTab, setActiveTab] = useState('login'); // 'login' or 'quick'
   const [showPassword, setShowPassword] = useState(false);
 
-  // Register / local-create state
-  const [showRegister, setShowRegister] = useState(false);
-  const [registerData, setRegisterData] = useState({ name: '', username: '', email: '', password: '', confirmPassword: '', role: 'waiter' });
-  const [regLoading, setRegLoading] = useState(false);
-  const [regError, setRegError] = useState('');
-  const [regSuccess, setRegSuccess] = useState('');
 
   const { login, isAuthenticated, user, loading: authLoading, restoreCachedSession } = useAuth();
   const [cachedAvailable, setCachedAvailable] = useState(false);

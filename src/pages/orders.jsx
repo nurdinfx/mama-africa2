@@ -10,6 +10,86 @@ import { enqueue } from '../services/offlineQueue';
 import { dbService } from '../services/db'; // Import dbService
 import { Link } from 'react-router-dom';
 
+// --- Global Helpers (Moved outside component to fix ReferenceError and scoping issues) ---
+
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(amount || 0);
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).replace(',', '');
+  } catch (e) {
+    return String(dateString);
+  }
+};
+
+const getStatusColor = (status) => {
+  const colors = {
+    pending: 'bg-yellow-500 text-white',
+    confirmed: 'bg-blue-500 text-white',
+    preparing: 'bg-orange-500 text-white',
+    ready: 'bg-green-500 text-white',
+    completed: 'bg-gray-500 text-white',
+    cancelled: 'bg-red-500 text-white'
+  };
+  return colors[status] || 'bg-gray-500 text-white';
+};
+
+const getKitchenStatusColor = (kitchenStatus) => {
+  const colors = {
+    pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    preparing: 'bg-orange-100 text-orange-800 border-orange-300',
+    ready: 'bg-green-100 text-green-800 border-green-300',
+    served: 'bg-blue-100 text-blue-800 border-blue-300'
+  };
+  return colors[kitchenStatus] || 'bg-gray-100 text-gray-800 border-gray-300';
+};
+
+// Helper to calculate totals based on order items or fallback fields
+// Now respects original tax status (if taxAmount is explicitly 0, VAT is disabled)
+const calculateOrderTotals = (order) => {
+  let subtotal = 0;
+
+  // 1. Try to calculate from items first (most accurate)
+  if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+    subtotal = order.items.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0;
+      const qty = parseInt(item.quantity) || 1;
+      return sum + (price * qty);
+    }, 0);
+  }
+  // 2. Fallback to stored subtotal
+  else if (order.subtotal) {
+    subtotal = parseFloat(order.subtotal);
+  }
+  // 3. Fallback to totalAmount (assuming it might be subtotal)
+  else if (order.totalAmount) {
+    subtotal = parseFloat(order.totalAmount);
+  }
+
+  // VAT logic: If taxAmount or tax is explicitly 0, it means VAT was disabled in POS
+  // We check for 0 strictly to allow for undefined cases where we might want default 4%
+  const isVatDisabled = order.taxAmount === 0 || order.tax === 0;
+
+  const tax = isVatDisabled ? 0 : subtotal * 0.04;
+  const total = subtotal + tax;
+
+  return { subtotal, tax, total };
+};
+
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -46,33 +126,6 @@ const Orders = () => {
 
   const { user } = useAuth();
 
-  // Helper to force 4% VAT calculation on any order
-  const calculateOrderTotals = (order) => {
-    let subtotal = 0;
-
-    // 1. Try to calculate from items first (most accurate)
-    if (order.items && Array.isArray(order.items) && order.items.length > 0) {
-      subtotal = order.items.reduce((sum, item) => {
-        const price = parseFloat(item.price) || 0;
-        const qty = parseInt(item.quantity) || 1;
-        return sum + (price * qty);
-      }, 0);
-    }
-    // 2. Fallback to stored subtotal
-    else if (order.subtotal) {
-      subtotal = parseFloat(order.subtotal);
-    }
-    // 3. Fallback to totalAmount (assuming it might be subtotal)
-    else if (order.totalAmount) {
-      subtotal = parseFloat(order.totalAmount);
-    }
-
-    // Force 4% VAT
-    const tax = subtotal * 0.04;
-    const total = subtotal + tax;
-
-    return { subtotal, tax, total };
-  };
 
   // New state for dropdown data
   const [users, setUsers] = useState([]);
@@ -236,8 +289,8 @@ const Orders = () => {
       try {
         const response = await realApi.getOrders({ limit: 1000 }); // Increased limit
         if (response.success) {
-           onlineOrders = realApi.extractData(response) || [];
-           setCache('orders', onlineOrders);
+          onlineOrders = realApi.extractData(response) || [];
+          setCache('orders', onlineOrders);
         }
       } catch (e) {
         console.warn('Failed to fetch online orders, using cache');
@@ -248,17 +301,17 @@ const Orders = () => {
       // 2. Fetch Offline Orders
       let offlineOrders = [];
       try {
-         offlineOrders = await dbService.getAll('offline_orders');
+        offlineOrders = await dbService.getAll('offline_orders');
       } catch (e) {
-         console.error('Failed to fetch offline orders', e);
+        console.error('Failed to fetch offline orders', e);
       }
 
       // 3. Merge Orders (Offline first)
       const allOrders = [...offlineOrders, ...onlineOrders];
-      
+
       // Deduplicate by ID just in case
       const uniqueOrders = Array.from(new Map(allOrders.map(item => [item._id || item.tempId, item])).values());
-      
+
       // Sort by date (newest first)
       uniqueOrders.sort((a, b) => new Date(b.createdAt || b.orderDate || 0) - new Date(a.createdAt || a.orderDate || 0));
 
@@ -703,7 +756,9 @@ const Orders = () => {
 
   const calculateUpdatedTotals = () => {
     const subtotal = updateOrderItems.reduce((sum, item) => sum + (item.total || item.price * item.quantity), 0);
-    const taxRate = 0.04; // 4% tax to match POS
+    // Respect original order's VAT preference (if tax was 0, it stays 0)
+    const isVatDisabled = selectedOrder?.taxAmount === 0 || selectedOrder?.tax === 0;
+    const taxRate = isVatDisabled ? 0 : 0.04;
     const tax = subtotal * taxRate;
     const finalTotal = subtotal + tax;
 
@@ -1228,24 +1283,6 @@ const Orders = () => {
     return names[status] || status;
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount || 0);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'numeric',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
-  };
 
   const formatTime = (dateString) => {
     if (!dateString) return '';
@@ -1629,47 +1666,7 @@ const Orders = () => {
   );
 };
 
-// Order Modal Component
 const OrderModal = ({ order, onClose, onPrint, onPayNow, onUpdateOrder, onUpdateKitchenStatus }) => {
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount || 0);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'bg-yellow-500 text-white',
-      confirmed: 'bg-blue-500 text-white',
-      preparing: 'bg-orange-500 text-white',
-      ready: 'bg-green-500 text-white',
-      completed: 'bg-gray-500 text-white',
-      cancelled: 'bg-red-500 text-white'
-    };
-    return colors[status] || 'bg-gray-500 text-white';
-  };
-
-  const getKitchenStatusColor = (kitchenStatus) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      preparing: 'bg-orange-100 text-orange-800 border-orange-300',
-      ready: 'bg-green-100 text-green-800 border-green-300',
-      served: 'bg-blue-100 text-blue-800 border-blue-300'
-    };
-    return colors[kitchenStatus] || 'bg-gray-100 text-gray-800 border-gray-300';
-  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
