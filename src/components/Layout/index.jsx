@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext'; // Fixed import path
 import Sidebar from './Sidebar';
@@ -9,10 +9,10 @@ const Layout = () => {
   const location = useLocation();
 
   // Sidebar drawer open/close (all breakpoints)
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Auto-close mobile sidebar when route changes
-  React.useEffect(() => {
+  useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname]);
 

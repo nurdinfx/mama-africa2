@@ -59,10 +59,10 @@ const Header = ({ toggleSidebar }) => {
 
           <div className="flex flex-col">
             <span className="text-[11px] uppercase tracking-[0.2em] text-blue-100">
-              Hudi POS System
+              HUDI-SOFT POS
             </span>
             <span className="text-lg md:text-xl font-semibold leading-tight">
-              Smart Restaurant & Cafe Suite
+              HUDI-SOFT Business Suite
             </span>
             {!isOnline && (
               <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded ml-2 animate-pulse w-fit">

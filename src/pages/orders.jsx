@@ -122,7 +122,8 @@ const Orders = () => {
   const [kitchenOrders, setKitchenOrders] = useState([]);
   const [showKitchenModal, setShowKitchenModal] = useState(false);
   const [kitchenStatusFilter, setKitchenStatusFilter] = useState('all');
-  const itemsPerPage = 10;
+  // Number of orders per page in the Orders table (affects only UI pagination, not backend limit)
+  const itemsPerPage = 100;
 
   const { user } = useAuth();
 
@@ -154,11 +155,32 @@ const Orders = () => {
           realApi.getAvailableTables(),
           realApi.getCustomers()
         ]);
-        if (usersRes.success) setUsers(realApi.extractData(usersRes) || []);
-        if (tablesRes.success) setTables(realApi.extractData(tablesRes) || []);
-        if (customersRes.success) setCustomers(realApi.extractData(customersRes) || []);
+
+        if (usersRes?.success) setUsers(realApi.extractData(usersRes) || []);
+
+        // Tables with offline fallback
+        let tablesData = [];
+        if (tablesRes?.success) tablesData = realApi.extractData(tablesRes) || [];
+        if (!tablesRes?.success || !tablesData?.length) {
+          try {
+            const offlineTables = await dbService.getAll('tables');
+            if (Array.isArray(offlineTables) && offlineTables.length) {
+              tablesData = offlineTables;
+            }
+          } catch (e) {
+            console.warn('Fallback tables failed', e);
+          }
+        }
+        setTables(tablesData);
+
+        if (customersRes?.success) setCustomers(realApi.extractData(customersRes) || []);
       } catch (err) {
         console.error("Error loading dropdown data", err);
+        // Fallback to offline tables/customers
+        try {
+          const offlineTables = await dbService.getAll('tables');
+          setTables(offlineTables || []);
+        } catch (e) {}
       }
     };
     loadDropdownData();
@@ -284,10 +306,10 @@ const Orders = () => {
       setError('');
       console.log('🔄 Loading orders...');
 
-      // 1. Fetch Online Orders (with high limit)
+      // 1. Fetch Online Orders (with very high limit for large datasets)
       let onlineOrders = [];
       try {
-        const response = await realApi.getOrders({ limit: 1000 }); // Increased limit
+        const response = await realApi.getOrders({ limit: 1000000 }); // allow millions
         if (response.success) {
           onlineOrders = realApi.extractData(response) || [];
           setCache('orders', onlineOrders);
@@ -417,9 +439,11 @@ const Orders = () => {
     }
 
     if (filters.table) {
-      filtered = filtered.filter(order =>
-        order.tableNumber?.toLowerCase().includes(filters.table.toLowerCase())
-      );
+      const tableFilter = String(filters.table).toLowerCase();
+      filtered = filtered.filter(order => {
+        const tableVal = order.tableNumber || order.tableNo || order.table || order.table_id;
+        return tableVal && String(tableVal).toLowerCase().includes(tableFilter);
+      });
     }
 
     if (filters.servedBy) {
@@ -658,6 +682,67 @@ const Orders = () => {
     `;
 
     printWindow.document.write(receiptContent);
+    printWindow.document.close();
+  };
+
+  // Print all currently filtered orders
+  const handlePrintAllOrders = () => {
+    if (!filteredOrders.length) {
+      alert('No orders to print');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=500,height=700');
+    if (!printWindow) return;
+
+    const now = new Date();
+    const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const rows = filteredOrders.map(o => {
+      const totals = calculateOrderTotals(o);
+      const orderNo = (o.orderNumber || '').split('-').pop();
+      return `
+        <tr>
+          <td>#${orderNo || ''}</td>
+          <td>${o.tableNumber || '-'}</td>
+          <td>${o.customerName || o.customer?.name || '-'}</td>
+          <td style="text-align:right;">$${(totals.total || 0).toFixed(2)}</td>
+          <td style="text-align:right;">${o.status || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>All Orders</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+            body { font-family: 'Inter', sans-serif; padding: 12px; }
+            h2 { margin: 0 0 8px 0; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th, td { padding: 6px 4px; border-bottom: 1px solid #ddd; text-align: left; }
+            th { background: #f4f6f8; }
+          </style>
+        </head>
+        <body>
+          <h2>Orders (${filteredOrders.length})</h2>
+          <div style="font-size:12px; margin-bottom:8px;">Printed: ${formattedDate}</div>
+          <table>
+            <thead>
+              <tr><th>#</th><th>Table</th><th>Customer</th><th style="text-align:right;">Total</th><th style="text-align:right;">Status</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <script>
+            window.onload = () => { setTimeout(() => { window.print(); window.onafterprint = () => window.close(); }, 400); };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
     printWindow.document.close();
   };
 
@@ -1379,6 +1464,7 @@ const Orders = () => {
             </div>
             <button onClick={handleTableInvoice} className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap ml-2">Table Payment (Inv)</button>
             <button onClick={handleTablePayment} className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap">Table Payment</button>
+            <button onClick={handlePrintAllOrders} className="bg-[#2a62a3] hover:bg-[#3474bd] px-3 py-1 rounded text-xs border border-[#4a85c5] whitespace-nowrap">Print All</button>
             <Link to="/pos" className="bg-[#4caf50] hover:bg-[#43a047] text-white px-3 py-1 rounded text-xs border border-green-600 font-bold flex items-center gap-1 whitespace-nowrap">
               <span className="text-lg leading-none">+</span> Add
             </Link>
@@ -1433,7 +1519,11 @@ const Orders = () => {
             <select className="w-full h-[34px] border border-gray-300 rounded px-1 text-xs bg-white focus:border-blue-500 outline-none shadow-sm"
               value={filters.table} onChange={e => setFilters({ ...filters, table: e.target.value })}>
               <option value="">Tables</option>
-              {tables.map(t => <option key={t._id} value={t.tableNo || t.name}>Table {t.tableNo || t.name}</option>)}
+              {tables.map(t => {
+                const value = t.tableNumber || t.tableNo || t.name || t.number || '';
+                const label = t.tableNumber || t.tableNo || t.name || t.number || 'Unknown';
+                return <option key={t._id || value} value={value}>{`Table ${label}`}</option>;
+              })}
             </select>
           </div>
 

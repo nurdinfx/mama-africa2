@@ -302,7 +302,7 @@ const Login = () => {
               {activeTab === 'login' ? (
                 <form onSubmit={handleSubmit} className="space-y-6 animate-fadeIn">
                   <div className="text-center mb-8">
-                    <h3 className="text-3xl font-black text-white tracking-tight">MAMA AFRICA</h3>
+                    <h3 className="text-3xl font-black text-white tracking-tight">HUDI-SOFT</h3>
                     <p className="text-white/60 text-sm mt-2 uppercase tracking-[0.2em]">Secure Terminal Access</p>
                   </div>
 

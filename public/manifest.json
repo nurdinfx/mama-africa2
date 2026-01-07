@@ -1,7 +1,7 @@
 {
-    "name": "Mama Africa Restaurant",
-    "short_name": "Mama Africa",
-    "description": "Mama Africa Restaurant Management System",
+    "name": "HUDI-SOFT POS",
+    "short_name": "HUDI-SOFT",
+    "description": "HUDI-SOFT Professional Restaurant Management System",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",

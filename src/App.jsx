@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
@@ -21,8 +21,10 @@ import Purchase from './pages/purchase'; // FIXED: This file should be .jsx
 import Reports from './pages/reports';
 import CustomerDisplay from './pages/customer-display';
 import CashierHandoverReport from './pages/cashier-handover-report';
+import ActivationPage from './pages/activation';
+import AdminLicenseDashboard from './pages/admin-license';
 
-import { useEffect } from 'react';
+
 import { syncService } from './services/SyncService';
 import { Toaster, toast } from 'react-hot-toast';
 import ConnectionStatus from './components/ConnectionStatus';
@@ -160,10 +162,17 @@ function App() {
                     <Users />
                   </ProtectedRoute>
                 } />
+
+                <Route path="admin/licensing" element={
+                  <ProtectedRoute requiredRoles={['admin']}>
+                    <AdminLicenseDashboard />
+                  </ProtectedRoute>
+                } />
               </Route>
 
               {/* Customer Display Route (Second Screen) */}
               <Route path="/customer-view" element={<CustomerDisplay />} />
+              <Route path="/activate" element={<ActivationPage />} />
 
               <Route path="*" element={<Navigate to="/pos" replace />} />
             </Routes>

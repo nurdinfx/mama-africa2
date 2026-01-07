@@ -125,6 +125,9 @@ api.interceptors.response.use(
         } catch (e) {
           console.warn('Failed to dispatch auth.logout event; manual logout may be required', e);
         }
+      } else if (error.response.status === 402) {
+        // License required
+        window.location.href = '/activate';
       }
     } else if (error.request) {
       errorMessage = 'No response from server. Please check if backend is running.';

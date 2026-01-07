@@ -15,6 +15,7 @@ import {
   Settings,
   CreditCard,
   LogOut,
+  Shield,
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
@@ -35,6 +36,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { name: 'Users', href: '/users', icon: Users, roles: ['admin', 'manager'] },
     { name: 'Reports', href: '/reports', icon: TrendingUp, roles: ['admin', 'manager'] },
     { name: 'Settings', href: '/settings', icon: Settings, roles: ['admin', 'manager'] },
+    { name: 'License Mgmt', href: '/admin/licensing', icon: Shield, roles: ['admin'] },
   ];
 
   const filteredNavigation = navigation.filter(
@@ -65,14 +67,14 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     >
       <div className="p-4 flex justify-between items-center border-b border-blue-600/50">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-white text-blue-700 flex items-center justify-center font-bold text-lg shadow-sm">
-            HP
+          <div className="h-10 w-10 rounded-xl bg-white overflow-hidden flex items-center justify-center shadow-sm">
+            <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-white tracking-wide">
-              Hudi POS
+              HUDI-SOFT
             </h1>
-            <p className="text-xs text-blue-200">Restaurant Suite</p>
+            <p className="text-xs text-blue-200">POS & Business Suite</p>
           </div>
         </div>
         <button
