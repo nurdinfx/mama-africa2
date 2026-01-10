@@ -2,13 +2,17 @@
   "name": "restaurant-management-frontend",
   "version": "1.0.0",
   "type": "module",
+  "main": "electron.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest",
-    "deploy": "npm run build && npm run preview"
+    "deploy": "npm run build && npm run preview",
+    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on tcp:3000 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -17,10 +21,20 @@
     "@mui/material": "^7.3.5",
     "@mui/x-data-grid": "^8.20.0",
     "axios": "^1.5.0",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.5.0",
     "chart.js": "^4.4.0",
+    "cloudinary": "^2.8.0",
+    "cors": "^2.8.5",
     "date-fns": "^2.30.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
     "idb": "^8.0.3",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.288.0",
+    "multer": "^1.4.5-lts.1",
+    "node-machine-id": "^1.1.12",
     "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
@@ -29,6 +43,7 @@
     "react-icons": "^5.5.0",
     "react-router-dom": "^6.15.0",
     "recharts": "^3.6.0",
+    "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
     "vite-plugin-pwa": "^1.2.0",
     "workbox-window": "^7.4.0"
@@ -36,12 +51,42 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.3",
     "autoprefixer": "^10.4.14",
+    "concurrently": "^8.2.0",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.3",
     "eslint": "^8.45.0",
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.3",
+    "nodemon": "^3.0.1",
     "postcss": "^8.4.27",
     "tailwindcss": "^3.3.3",
-    "vite": "^4.4.5"
+    "vite": "^4.4.5",
+    "wait-on": "^7.0.1"
+  },
+  "build": {
+    "appId": "com.hudisoft.mamaafrica",
+    "productName": "MAMA AFRICA RESTAURANT",
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "files": [
+      "dist/**/*",
+      "backend/**/*",
+      "electron.js",
+      "preload.js",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    }
   }
 }

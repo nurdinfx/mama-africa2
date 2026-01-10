@@ -152,7 +152,7 @@ const Orders = () => {
       try {
         const [usersRes, tablesRes, customersRes] = await Promise.all([
           realApi.getUsers(),
-          realApi.getAvailableTables(),
+          realApi.getTables(),
           realApi.getCustomers()
         ]);
 
@@ -180,7 +180,7 @@ const Orders = () => {
         try {
           const offlineTables = await dbService.getAll('tables');
           setTables(offlineTables || []);
-        } catch (e) {}
+        } catch (e) { }
       }
     };
     loadDropdownData();
@@ -1567,6 +1567,7 @@ const Orders = () => {
               <tr>
                 <th className="p-2 text-left w-24">Order Info</th>
                 <th className="p-2 text-left">Served by</th>
+                <th className="p-2 text-left">Table</th>
                 <th className="p-2 text-left">Customer</th>
                 <th className="p-2 text-center w-16">Room</th>
                 <th className="p-2 text-center">Payment</th>
@@ -1579,7 +1580,7 @@ const Orders = () => {
             <tbody className="divide-y divide-gray-200 bg-white">
               {currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="p-8 text-center text-gray-400 italic">No orders found</td>
+                  <td colSpan="10" className="p-8 text-center text-gray-400 italic">No orders found</td>
                 </tr>
               ) : (
                 currentItems.map((order, idx) => (
@@ -1589,6 +1590,9 @@ const Orders = () => {
                     </td>
                     <td className="p-2 align-top text-xs font-medium text-gray-700">
                       {order.cashier?.name || order.user?.name || 'A'}
+                    </td>
+                    <td className="p-2 align-top text-xs text-gray-700">
+                      {order.tableNumber || order.tableNo || '-'}
                     </td>
                     <td className="p-2 align-top text-xs text-gray-600">
                       {order.customer?.name || order.customerName || 'Walking Customer'}

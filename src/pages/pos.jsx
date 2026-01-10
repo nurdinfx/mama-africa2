@@ -110,7 +110,7 @@ const POS = () => {
       .catch(() => setCategories(['BREAKFAST & SNACKS', 'LUNCH', 'DINNER', 'DRINKS', 'OTHERS']));
 
     // Load Tables (Background)
-    realApi.getAvailableTables()
+    realApi.getTables()
       .then(response => {
         if (response.success) {
           const tablesData = realApi.extractData(response) || [];

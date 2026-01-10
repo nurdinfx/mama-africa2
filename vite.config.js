@@ -36,6 +36,6 @@ export default defineConfig({
       }
     }
   },
-  base: './',
+  base: process.env.ELECTRON ? './' : '/',
   publicDir: 'public'
 })
