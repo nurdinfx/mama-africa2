@@ -12,9 +12,13 @@ export const useRealSocket = () => {
 
   useEffect(() => {
     if (!user || !branch) return;
+    if (!navigator.onLine) {
+      console.log('📡 Offline mode: Socket connection skipped');
+      return;
+    }
 
     const socketUrl = API_CONFIG.SOCKET_URL;
-    
+
     socketRef.current = io(socketUrl, {
       auth: {
         token: localStorage.getItem('token')
@@ -26,15 +30,15 @@ export const useRealSocket = () => {
       console.log('✅ Socket connected:', socketRef.current.id);
       setIsConnected(true);
       setReconnectAttempts(0);
-      
+
       // Join branch room
       socketRef.current.emit('join-branch', branch._id);
-      
+
       // Join specific rooms based on role
       if (['admin', 'chef'].includes(user.role)) {
         socketRef.current.emit('join-kitchen', branch._id);
       }
-      
+
       if (['admin', 'manager', 'cashier'].includes(user.role)) {
         socketRef.current.emit('join-pos', branch._id);
       }

@@ -101,28 +101,85 @@ const POSInterface = () => {
   };
 
   const printReceipt = (order) => {
-    // Implement receipt printing logic
-    const receiptWindow = window.open('', '_blank');
-    receiptWindow.document.write(`
+    // Create a hidden iframe for printing if it doesn't exist
+    let iframe = document.getElementById('receipt-frame');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'receipt-frame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    const doc = iframe.contentWindow.document;
+
+    // Calculate totals if missing
+    const subtotal = order.subtotal || order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const tax = order.tax || 0;
+    const total = order.finalTotal || order.total || (subtotal + tax);
+
+    doc.open();
+    doc.write(`
       <html>
-        <head><title>Receipt</title></head>
+        <head>
+          <title>Receipt</title>
+          <style>
+            body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0; padding: 10px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .divider { border-top: 1px dashed #000; margin: 10px 0; }
+            .item-row { display: flex; justify-content: space-between; margin: 5px 0; }
+            .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-top: 10px; font-size: 14px; }
+            .footer { text-align: center; margin-top: 20px; font-size: 10px; }
+            @media print {
+              @page { margin: 0; size: auto; }
+              body { margin: 0.5cm; }
+            }
+          </style>
+        </head>
         <body>
-          <div style="text-align: center; font-family: monospace;">
-            <h2>${branch?.name}</h2>
+          <div class="header">
+            <h3>${order.branch?.name || 'MAMA AFRICA'}</h3>
+            <p>${new Date().toLocaleString()}</p>
             <p>Order #${order.orderNumber}</p>
-            <hr>
-            ${order.items.map(item => `
-              <div>${item.product.name} x${item.quantity} - $${(item.price * item.quantity).toFixed(2)}</div>
-            `).join('')}
-            <hr>
-            <div>Subtotal: $${order.subtotal.toFixed(2)}</div>
-            <div>Tax: $${order.tax.toFixed(2)}</div>
-            <div><strong>Total: $${order.total.toFixed(2)}</strong></div>
+          </div>
+          
+          <div class="divider"></div>
+          
+          ${order.items.map(item => `
+            <div class="item-row">
+              <span>${item.product.name || item.productName || 'Item'} x${item.quantity}</span>
+              <span>${(item.price * item.quantity).toFixed(2)}</span>
+            </div>
+          `).join('')}
+          
+          <div class="divider"></div>
+          
+          <div class="item-row">
+            <span>Subtotal:</span>
+            <span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div class="item-row">
+            <span>Tax:</span>
+            <span>${tax.toFixed(2)}</span>
+          </div>
+          
+          <div class="total-row">
+            <span>TOTAL:</span>
+            <span>${total.toFixed(2)}</span>
+          </div>
+          
+          <div class="footer">
+            <p>Thank you for dining with us!</p>
           </div>
         </body>
       </html>
     `);
-    receiptWindow.print();
+    doc.close();
+
+    // Print after content is loaded
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 500);
   };
 
   return (
